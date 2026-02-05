@@ -1,0 +1,35 @@
+name: GeminiNPC
+version: '1.0.0'
+main: com.gemininpc.plugin.GeminiNPC
+api-version: '1.21'
+authors: [MinecraftAI]
+description: Minecraft NPC AI Counseling Plugin using Google Gemini
+
+commands:
+  gemini:
+    description: Start counseling mode or send a message
+    usage: /gemini [message]
+    aliases: [ai, counsel]
+  exit:
+    description: End counseling mode
+    usage: /exit
+    aliases: [quit, end]
+  geminireload:
+    description: Reload GeminiNPC configuration
+    usage: /geminireload
+    permission: gemininpc.reload
+  geminiclear:
+    description: Clear your conversation history
+    usage: /geminiclear
+  geminihelp:
+    description: Show help
+    usage: /geminihelp
+    aliases: [ghelp]
+
+permissions:
+  gemininpc.reload:
+    description: Allows reloading the GeminiNPC configuration
+    default: op
+  gemininpc.use:
+    description: Allows using the GeminiNPC chat features
+    default: true
