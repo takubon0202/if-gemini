@@ -9,6 +9,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -637,7 +638,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             String message = command.substring(1).trim();
 
             if (message.isEmpty()) {
-                player.sendMessage(ChatColor.GRAY + "/<相談内容> で相談できます。/model でモデル変更。/exit でメニューに戻ります。");
+                player.sendMessage(ChatColor.GRAY + "チャットで相談内容を入力してください。ボタンからモデル変更・メニューに戻れます。");
                 return;
             }
 
@@ -676,7 +677,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             String query = command.substring(1).trim();
 
             if (query.isEmpty()) {
-                player.sendMessage(ChatColor.GRAY + "/<検索ワード> で検索できます。/model でモデル変更。/exit でメニューに戻ります。");
+                player.sendMessage(ChatColor.GRAY + "チャットで検索ワードを入力してください。ボタンからモデル変更・メニューに戻れます。");
                 return;
             }
 
@@ -744,7 +745,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             }
 
             if (input.isEmpty()) {
-                player.sendMessage(ChatColor.GRAY + "/<画像の説明> で画像を生成できます。/settings で設定表示。/exit でメニューに戻ります。");
+                player.sendMessage(ChatColor.GRAY + "チャットで画像の説明を入力してください。ボタンから設定変更・メニューに戻れます。");
                 return;
             }
 
@@ -811,7 +812,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             String rawInput = rawMessage.substring(1).trim();
 
             if (input.isEmpty()) {
-                player.sendMessage(ChatColor.GRAY + "/<やりたいこと> でコマンドを生成します。/model でモデル変更。/exit でメニューに戻ります。");
+                player.sendMessage(ChatColor.GRAY + "チャットでやりたいことを入力してください。ボタンからモデル変更・メニューに戻れます。");
                 return;
             }
 
@@ -834,6 +835,34 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             });
             return;
         }
+    }
+
+    // Handle regular chat messages for mode input (no / prefix needed)
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onPlayerChat(AsyncPlayerChatEvent event) {
+        Player player = event.getPlayer();
+        UUID playerId = player.getUniqueId();
+        SessionMode mode = getSessionMode(playerId);
+
+        if (mode == SessionMode.INACTIVE) return;
+
+        event.setCancelled(true);
+        String rawMessage = event.getMessage().trim();
+
+        if (rawMessage.isEmpty()) return;
+
+        // Switch to main thread and reuse existing command handling logic
+        // by creating a synthetic PlayerCommandPreprocessEvent
+        Bukkit.getScheduler().runTask(GeminiNPC.this, () -> {
+            // Re-check session mode on main thread (may have changed)
+            SessionMode currentMode = getSessionMode(playerId);
+            if (currentMode == SessionMode.INACTIVE) return;
+
+            // Create synthetic event with "/" prefix to reuse existing handler
+            PlayerCommandPreprocessEvent syntheticEvent =
+                new PlayerCommandPreprocessEvent(player, "/" + rawMessage);
+            onPlayerCommand(syntheticEvent);
+        });
     }
 
     @Override
@@ -1239,40 +1268,40 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage("");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[1] 相談モード", "/1", "クリックで相談モードを開始", net.md_5.bungee.api.ChatColor.AQUA),
+            createClickableButton("[1] 相談モード", "/gemini 1", "クリックで相談モードを開始", net.md_5.bungee.api.ChatColor.AQUA),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             text("AIに相談", net.md_5.bungee.api.ChatColor.GRAY));
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[2] 検索モード", "/2", "クリックで検索モードを開始", net.md_5.bungee.api.ChatColor.GREEN),
+            createClickableButton("[2] 検索モード", "/gemini 2", "クリックで検索モードを開始", net.md_5.bungee.api.ChatColor.GREEN),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             text("Web検索", net.md_5.bungee.api.ChatColor.GRAY));
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[3] コマンド生成", "/3", "クリックでコマンド生成モードを開始", net.md_5.bungee.api.ChatColor.GOLD),
+            createClickableButton("[3] コマンド生成", "/gemini 3", "クリックでコマンド生成モードを開始", net.md_5.bungee.api.ChatColor.GOLD),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             text("AIでコマンド作成", net.md_5.bungee.api.ChatColor.GRAY));
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[4] 画像生成モード", "/4", "クリックで画像生成モードを開始", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE),
+            createClickableButton("[4] 画像生成モード", "/gemini 4", "クリックで画像生成モードを開始", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             text("AI画像生成", net.md_5.bungee.api.ChatColor.GRAY));
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[5] ヘルプ", "/5", "クリックでヘルプを表示", net.md_5.bungee.api.ChatColor.BLUE));
+            createClickableButton("[5] ヘルプ", "/gemini 5", "クリックでヘルプを表示", net.md_5.bungee.api.ChatColor.BLUE));
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[6] ステータス", "/6", "クリックでステータスを表示", net.md_5.bungee.api.ChatColor.GRAY));
+            createClickableButton("[6] ステータス", "/gemini 6", "クリックでステータスを表示", net.md_5.bungee.api.ChatColor.GRAY));
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[7] ライブラリ", "/7", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
+            createClickableButton("[7] ライブラリ", "/gemini 7", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             text("過去の画像", net.md_5.bungee.api.ChatColor.GRAY));
         player.sendMessage("");
         player.sendMessage(ChatColor.DARK_GRAY + "  ─────────────────────────────────");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[終了] /exit", "/exit", "クリックでシステム終了", net.md_5.bungee.api.ChatColor.RED));
+            createClickableButton("[終了]", "/gemini exit", "クリックでシステム終了", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
     }
 
@@ -1289,13 +1318,13 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.AQUA + "╚═══════════════════════════════════════════════╝");
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  使い方:");
-        player.sendMessage(ChatColor.GREEN + "    /<相談内容>" + ChatColor.GRAY + " → 相談する（例: " + ChatColor.WHITE + "/悩みがある" + ChatColor.GRAY + "）");
+        player.sendMessage(ChatColor.GREEN + "    チャットで相談内容を入力" + ChatColor.GRAY + "（例: " + ChatColor.WHITE + "悩みがある" + ChatColor.GRAY + "）");
         player.sendMessage("");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[モデル変更]", "/model", "クリックでモデル変更", net.md_5.bungee.api.ChatColor.YELLOW),
+            createClickableButton("[モデル変更]", "/gemini model", "クリックでモデル変更", net.md_5.bungee.api.ChatColor.YELLOW),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-            createClickableButton("[メニューに戻る]", "/exit", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+            createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
         player.sendMessage(ChatColor.AQUA + "[" + npcName + "] " + ChatColor.WHITE +
             "こんにちは！何か困っていることはありますか？気軽に話してくださいね。");
@@ -1315,16 +1344,16 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.GREEN + "╚═══════════════════════════════════════════════╝");
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  使い方:");
-        player.sendMessage(ChatColor.GREEN + "    /<検索ワード>" + ChatColor.GRAY + " → 検索する");
+        player.sendMessage(ChatColor.GREEN + "    チャットで検索ワードを入力" + ChatColor.GRAY + " → 検索する");
         player.sendMessage("");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[モデル変更]", "/model", "クリックでモデル変更", net.md_5.bungee.api.ChatColor.YELLOW),
+            createClickableButton("[モデル変更]", "/gemini model", "クリックでモデル変更", net.md_5.bungee.api.ChatColor.YELLOW),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-            createClickableButton("[メニューに戻る]", "/exit", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+            createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
-        player.sendMessage(ChatColor.GRAY + "  例: " + ChatColor.WHITE + "/Minecraft 建築 コツ");
-        player.sendMessage(ChatColor.GRAY + "  例: " + ChatColor.WHITE + "/レッドストーン回路 初心者");
+        player.sendMessage(ChatColor.GRAY + "  例: " + ChatColor.WHITE + "Minecraft 建築 コツ");
+        player.sendMessage(ChatColor.GRAY + "  例: " + ChatColor.WHITE + "レッドストーン回路 初心者");
         player.sendMessage("");
     }
 
@@ -1345,26 +1374,26 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.LIGHT_PURPLE + "╚═══════════════════════════════════════════════╝");
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  画像を生成:");
-        player.sendMessage(ChatColor.LIGHT_PURPLE + "    /<画像の説明>" + ChatColor.GRAY + " → 画像を生成");
-        player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "/夕焼けの海");
-        player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "/かわいい猫がMinecraftで遊んでいる");
-        player.sendMessage(ChatColor.DARK_GRAY + "      ※ローマ字OK: /yuuyakenoumi → 夕焼けの海");
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "    チャットで画像の説明を入力" + ChatColor.GRAY + " → 画像を生成");
+        player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "夕焼けの海");
+        player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "かわいい猫がMinecraftで遊んでいる");
+        player.sendMessage(ChatColor.DARK_GRAY + "      ※ローマ字OK: yuuyakenoumi → 夕焼けの海");
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  画像から画像を生成" + ChatColor.GRAY + " (Image-to-Image):");
-        player.sendMessage(ChatColor.AQUA + "    /https://画像URL プロンプト" + ChatColor.GRAY + " → 画像を変換");
-        player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "/https://example.com/img.png animefuunisite");
+        player.sendMessage(ChatColor.AQUA + "    https://画像URL プロンプト" + ChatColor.GRAY + " → 画像を変換");
+        player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "https://example.com/img.png animefuunisite");
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  操作" + ChatColor.GRAY + " (クリック):");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[設定一覧]", "/settings", "クリックで設定を表示", net.md_5.bungee.api.ChatColor.YELLOW),
+            createClickableButton("[設定一覧]", "/gemini image settings", "クリックで設定を表示", net.md_5.bungee.api.ChatColor.YELLOW),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-            createClickableButton("[モデル変更]", "/model", "クリックでモデル選択", net.md_5.bungee.api.ChatColor.AQUA),
+            createClickableButton("[モデル変更]", "/gemini imagemodel", "クリックでモデル選択", net.md_5.bungee.api.ChatColor.AQUA),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-            createClickableButton("[比率変更]", "/settings", "クリックで比率を変更", net.md_5.bungee.api.ChatColor.GREEN));
+            createClickableButton("[比率変更]", "/gemini image settings", "クリックで比率を変更", net.md_5.bungee.api.ChatColor.GREEN));
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[ライブラリ]", "/library", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
+            createClickableButton("[ライブラリ]", "/gemini library", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
@@ -1383,19 +1412,19 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════════════╝");
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  使い方:");
-        player.sendMessage(ChatColor.GRAY + "    /<やりたいこと> → AIがコマンドを生成");
+        player.sendMessage(ChatColor.GRAY + "    チャットでやりたいことを入力 → AIがコマンドを生成");
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  例:");
-        player.sendMessage(ChatColor.GRAY + "    /最強の剣を作って");
-        player.sendMessage(ChatColor.GRAY + "    /ダイヤの装備を全部ください");
-        player.sendMessage(ChatColor.GRAY + "    /saikyo no ken wo tukutte");
+        player.sendMessage(ChatColor.GRAY + "    最強の剣を作って");
+        player.sendMessage(ChatColor.GRAY + "    ダイヤの装備を全部ください");
+        player.sendMessage(ChatColor.GRAY + "    saikyo no ken wo tukutte");
         player.sendMessage("");
         player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[モデル変更]", "/model", "クリックでモデル変更", net.md_5.bungee.api.ChatColor.YELLOW),
+            createClickableButton("[モデル変更]", "/gemini model", "クリックでモデル変更", net.md_5.bungee.api.ChatColor.YELLOW),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-            createClickableButton("[メニューに戻る]", "/exit", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+            createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
     }
 
@@ -1493,7 +1522,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
 
         player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
-        player.sendMessage(ChatColor.GRAY + "  次のリクエストを入力 | " + ChatColor.YELLOW + "/exit" + ChatColor.GRAY + " → メニューに戻る");
+        player.sendMessage(ChatColor.GRAY + "  次のリクエストをチャットで入力");
         player.sendMessage("");
     }
 
@@ -1632,7 +1661,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.DARK_GRAY + "  ─────────────────────────────────");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[設定に戻る]", "/settings", "クリックで設定一覧に戻る", net.md_5.bungee.api.ChatColor.YELLOW),
+            createClickableButton("[設定に戻る]", "/gemini image settings", "クリックで設定一覧に戻る", net.md_5.bungee.api.ChatColor.YELLOW),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
@@ -1784,7 +1813,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.DARK_GRAY + "  ─────────────────────────────────");
         sendClickableLine(player,
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-            createSuggestButton("[画像を生成する]", "/", "/<画像の説明> を入力して画像を生成", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, true),
+            createSuggestButton("[画像を生成する]", "", "画像の説明をチャットで入力", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, true),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
@@ -1915,9 +1944,9 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
             sendClickableLine(player,
                 text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-                createSuggestButton("[続けて生成]", "/", "/<画像の説明> を入力して画像を生成", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, false),
+                createSuggestButton("[続けて生成]", "", "画像の説明をチャットで入力", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, false),
                 text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-                createClickableButton("[設定変更]", "/settings", "クリックで設定を表示", net.md_5.bungee.api.ChatColor.YELLOW));
+                createClickableButton("[設定変更]", "/gemini image settings", "クリックで設定を表示", net.md_5.bungee.api.ChatColor.YELLOW));
             sendClickableLine(player,
                 text("  ", net.md_5.bungee.api.ChatColor.GRAY),
                 createClickableButton("[ライブラリ]", "/gemini library", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
@@ -2137,29 +2166,29 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【相談モードの使い方】");
         sender.sendMessage("");
-        sender.sendMessage(ChatColor.WHITE + "メインメニューで " + ChatColor.YELLOW + "/1" + ChatColor.WHITE + " または " + ChatColor.YELLOW + "/chat");
-        sender.sendMessage(ChatColor.WHITE + "を入力して相談モードを開始。");
+        sender.sendMessage(ChatColor.WHITE + "メニューで " + ChatColor.YELLOW + "[1] 相談モード" + ChatColor.WHITE + " をクリック");
+        sender.sendMessage(ChatColor.WHITE + "または " + ChatColor.YELLOW + "/gemini chat" + ChatColor.WHITE + " で開始。");
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【相談の仕方】");
-        sender.sendMessage(ChatColor.YELLOW + "/<相談内容>" + ChatColor.WHITE + " で相談できます");
-        sender.sendMessage(ChatColor.GRAY + "例: /最近悩んでいることがある");
-        sender.sendMessage(ChatColor.GRAY + "例: /勉強のやる気が出ない");
+        sender.sendMessage(ChatColor.WHITE + "チャットで相談内容を入力するだけ！");
+        sender.sendMessage(ChatColor.GRAY + "例: 最近悩んでいることがある");
+        sender.sendMessage(ChatColor.GRAY + "例: 勉強のやる気が出ない");
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【終了・戻る】");
-        sender.sendMessage(ChatColor.YELLOW + "/exit" + ChatColor.WHITE + " でメインメニューに戻ります");
+        sender.sendMessage(ChatColor.WHITE + "[メニューに戻る]ボタンをクリック");
     }
 
     private void showHelpPage3(CommandSender sender) {
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【検索モードの使い方】");
         sender.sendMessage("");
-        sender.sendMessage(ChatColor.WHITE + "メインメニューで " + ChatColor.YELLOW + "/2" + ChatColor.WHITE + " または " + ChatColor.YELLOW + "/search");
-        sender.sendMessage(ChatColor.WHITE + "を入力して検索モードを開始。");
+        sender.sendMessage(ChatColor.WHITE + "メニューで " + ChatColor.YELLOW + "[2] 検索モード" + ChatColor.WHITE + " をクリック");
+        sender.sendMessage(ChatColor.WHITE + "または " + ChatColor.YELLOW + "/gemini search" + ChatColor.WHITE + " で開始。");
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【検索の仕方】");
-        sender.sendMessage(ChatColor.YELLOW + "/<検索ワード>" + ChatColor.WHITE + " で検索できます");
-        sender.sendMessage(ChatColor.GRAY + "例: /Minecraft 建築 コツ");
-        sender.sendMessage(ChatColor.GRAY + "例: /レッドストーン回路 初心者");
+        sender.sendMessage(ChatColor.WHITE + "チャットで検索ワードを入力するだけ！");
+        sender.sendMessage(ChatColor.GRAY + "例: Minecraft 建築 コツ");
+        sender.sendMessage(ChatColor.GRAY + "例: レッドストーン回路 初心者");
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【特徴】");
         sender.sendMessage(ChatColor.WHITE + "• リアルタイムでWebから情報を取得");
@@ -2177,7 +2206,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         sender.sendMessage(ChatColor.WHITE + "  詳しい回答。深い相談向け。");
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【モデル変更】");
-        sender.sendMessage(ChatColor.WHITE + "各モード内で " + ChatColor.YELLOW + "/model" + ChatColor.WHITE + " でモデル選択画面へ。");
+        sender.sendMessage(ChatColor.WHITE + "各モード内の " + ChatColor.YELLOW + "[モデル変更]" + ChatColor.WHITE + " ボタンをクリック。");
         sender.sendMessage(ChatColor.WHITE + "または " + ChatColor.YELLOW + "/gemini model" + ChatColor.WHITE + " でも変更可能。");
     }
 
@@ -2185,15 +2214,14 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【画像生成モード】");
         sender.sendMessage("");
-        sender.sendMessage(ChatColor.WHITE + "メインメニューで " + ChatColor.YELLOW + "/4" + ChatColor.WHITE + " または " + ChatColor.YELLOW + "/image");
-        sender.sendMessage(ChatColor.WHITE + "を入力して画像生成モードを開始。");
+        sender.sendMessage(ChatColor.WHITE + "メニューで " + ChatColor.YELLOW + "[4] 画像生成モード" + ChatColor.WHITE + " をクリック");
+        sender.sendMessage(ChatColor.WHITE + "または " + ChatColor.YELLOW + "/gemini image" + ChatColor.WHITE + " で開始。");
         sender.sendMessage("");
-        sender.sendMessage(ChatColor.GREEN + "【画像モード内コマンド】");
-        sender.sendMessage(ChatColor.YELLOW + "/<画像の説明>" + ChatColor.WHITE + " → 画像を生成");
-        sender.sendMessage(ChatColor.YELLOW + "/settings" + ChatColor.WHITE + " → 設定メニュー表示");
-        sender.sendMessage(ChatColor.YELLOW + "/model" + ChatColor.WHITE + " → モデル切替");
-        sender.sendMessage(ChatColor.YELLOW + "/ratio <値>" + ChatColor.WHITE + " → アスペクト比変更");
-        sender.sendMessage(ChatColor.YELLOW + "/resolution <値>" + ChatColor.WHITE + " → 解像度変更(Pro)");
+        sender.sendMessage(ChatColor.GREEN + "【使い方】");
+        sender.sendMessage(ChatColor.WHITE + "チャットで画像の説明を入力するだけ！");
+        sender.sendMessage(ChatColor.GRAY + "設定はボタンから変更できます。");
+        sender.sendMessage(ChatColor.YELLOW + "/gemini image settings" + ChatColor.WHITE + " → 設定メニュー");
+        sender.sendMessage(ChatColor.YELLOW + "/gemini imagemodel" + ChatColor.WHITE + " → モデル切替");
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【画像AIモデル】");
         sender.sendMessage(ChatColor.LIGHT_PURPLE + "Nanobanana" + ChatColor.WHITE + " - 高速 (1Kのみ)");
@@ -2209,11 +2237,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 sender.sendMessage(ChatColor.GOLD + "══════ 相談モード 詳細 ══════");
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.GREEN + "【開始方法】");
-                sender.sendMessage(ChatColor.WHITE + "/gemini → メニューで /1 または /chat");
+                sender.sendMessage(ChatColor.WHITE + "/gemini → メニューで [1] をクリック");
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.GREEN + "【使い方】");
-                sender.sendMessage(ChatColor.WHITE + "/<相談内容> で直接相談");
-                sender.sendMessage(ChatColor.GRAY + "例: /友達と喧嘩してしまった");
+                sender.sendMessage(ChatColor.WHITE + "チャットで相談内容を入力するだけ！");
+                sender.sendMessage(ChatColor.GRAY + "例: 友達と喧嘩してしまった");
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.GREEN + "【会話履歴】");
                 sender.sendMessage(ChatColor.WHITE + "AIは会話を記憶しています。");
@@ -2225,11 +2253,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 sender.sendMessage(ChatColor.GOLD + "══════ 検索モード 詳細 ══════");
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.GREEN + "【開始方法】");
-                sender.sendMessage(ChatColor.WHITE + "/gemini → メニューで /2 または /search");
+                sender.sendMessage(ChatColor.WHITE + "/gemini → メニューで [2] をクリック");
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.GREEN + "【使い方】");
-                sender.sendMessage(ChatColor.WHITE + "/<検索ワード> で検索");
-                sender.sendMessage(ChatColor.GRAY + "例: /Minecraft MOD おすすめ");
+                sender.sendMessage(ChatColor.WHITE + "チャットで検索ワードを入力するだけ！");
+                sender.sendMessage(ChatColor.GRAY + "例: Minecraft MOD おすすめ");
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.GREEN + "【コツ】");
                 sender.sendMessage(ChatColor.WHITE + "具体的なキーワードを複数使うと");
@@ -2241,23 +2269,24 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 sender.sendMessage(ChatColor.GOLD + "══════ 画像生成モード 詳細 ══════");
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.GREEN + "【開始方法】");
-                sender.sendMessage(ChatColor.WHITE + "/gemini → メニューで /4 または /image");
+                sender.sendMessage(ChatColor.WHITE + "/gemini → メニューで [4] をクリック");
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.GREEN + "【使い方】");
-                sender.sendMessage(ChatColor.WHITE + "/<画像の説明> で画像を生成");
-                sender.sendMessage(ChatColor.GRAY + "例: /宇宙から見た地球");
-                sender.sendMessage(ChatColor.GRAY + "例: /かわいい猫のイラスト");
+                sender.sendMessage(ChatColor.WHITE + "チャットで画像の説明を入力するだけ！");
+                sender.sendMessage(ChatColor.GRAY + "例: 宇宙から見た地球");
+                sender.sendMessage(ChatColor.GRAY + "例: かわいい猫のイラスト");
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.GREEN + "【画像モデル】");
                 sender.sendMessage(ChatColor.LIGHT_PURPLE + "Nanobanana" + ChatColor.WHITE + " - 高速・1Kのみ (~$0.04/枚)");
                 sender.sendMessage(ChatColor.LIGHT_PURPLE + "Nanobanana Pro" + ChatColor.WHITE + " - 高品質・4K対応 (~$0.13/枚)");
                 sender.sendMessage("");
-                sender.sendMessage(ChatColor.GREEN + "【画像モード内コマンド】");
-                sender.sendMessage(ChatColor.YELLOW + "/settings" + ChatColor.WHITE + " - 設定メニュー表示");
-                sender.sendMessage(ChatColor.YELLOW + "/model" + ChatColor.WHITE + " - モデル切替");
-                sender.sendMessage(ChatColor.YELLOW + "/ratio <値>" + ChatColor.WHITE + " - アスペクト比変更");
+                sender.sendMessage(ChatColor.GREEN + "【設定変更】");
+                sender.sendMessage(ChatColor.WHITE + "ボタンをクリックして設定変更できます。");
+                sender.sendMessage(ChatColor.YELLOW + "/gemini image settings" + ChatColor.WHITE + " - 設定メニュー");
+                sender.sendMessage(ChatColor.YELLOW + "/gemini imagemodel" + ChatColor.WHITE + " - モデル切替");
+                sender.sendMessage(ChatColor.YELLOW + "/gemini image ratio <値>" + ChatColor.WHITE + " - アスペクト比変更");
                 sender.sendMessage(ChatColor.GRAY + "  (1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9)");
-                sender.sendMessage(ChatColor.YELLOW + "/resolution <値>" + ChatColor.WHITE + " - 解像度変更 (Proのみ)");
+                sender.sendMessage(ChatColor.YELLOW + "/gemini image resolution <値>" + ChatColor.WHITE + " - 解像度変更 (Proのみ)");
                 sender.sendMessage(ChatColor.GRAY + "  (1K, 2K, 4K ※4Kはコスト約2倍)");
                 break;
 
@@ -2274,8 +2303,8 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 sender.sendMessage(ChatColor.GRAY + "  じっくり相談したい時に");
                 sender.sendMessage("");
                 sender.sendMessage(ChatColor.GREEN + "【変更方法】");
-                sender.sendMessage(ChatColor.WHITE + "各モード内で " + ChatColor.YELLOW + "/model" + ChatColor.WHITE + " でモデル選択画面へ");
-                sender.sendMessage(ChatColor.YELLOW + "/model flash" + ChatColor.WHITE + " / " + ChatColor.YELLOW + "/model pro" + ChatColor.WHITE + " で直接変更");
+                sender.sendMessage(ChatColor.WHITE + "各モード内の " + ChatColor.YELLOW + "[モデル変更]" + ChatColor.WHITE + " ボタンをクリック");
+                sender.sendMessage(ChatColor.WHITE + "または " + ChatColor.YELLOW + "/gemini model flash" + ChatColor.WHITE + " / " + ChatColor.YELLOW + "/gemini model pro" + ChatColor.WHITE + " で直接変更");
                 break;
 
             case "commands":
@@ -2295,16 +2324,15 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 sender.sendMessage(ChatColor.YELLOW + "/gemini clear" + ChatColor.WHITE + " - 履歴クリア");
                 sender.sendMessage(ChatColor.YELLOW + "/gemini exit" + ChatColor.WHITE + " - システム終了");
                 sender.sendMessage("");
-                sender.sendMessage(ChatColor.GREEN + "【モード内共通】");
-                sender.sendMessage(ChatColor.YELLOW + "/<内容>" + ChatColor.WHITE + " - 相談/検索/コマンド生成/画像生成を実行");
-                sender.sendMessage(ChatColor.YELLOW + "/model" + ChatColor.WHITE + " - AIモデル切替");
-                sender.sendMessage(ChatColor.YELLOW + "/exit" + ChatColor.WHITE + " - メニューに戻る");
+                sender.sendMessage(ChatColor.GREEN + "【モード内の使い方】");
+                sender.sendMessage(ChatColor.WHITE + "チャットで内容を入力するだけ！");
+                sender.sendMessage(ChatColor.WHITE + "ボタンをクリックして操作できます。");
                 sender.sendMessage("");
-                sender.sendMessage(ChatColor.GREEN + "【画像モード内】");
-                sender.sendMessage(ChatColor.YELLOW + "/settings" + ChatColor.WHITE + " - 設定メニュー");
-                sender.sendMessage(ChatColor.YELLOW + "/model" + ChatColor.WHITE + " - 画像モデル切替");
-                sender.sendMessage(ChatColor.YELLOW + "/ratio <値>" + ChatColor.WHITE + " - アスペクト比変更");
-                sender.sendMessage(ChatColor.YELLOW + "/resolution <値>" + ChatColor.WHITE + " - 解像度変更(Proのみ)");
+                sender.sendMessage(ChatColor.GREEN + "【画像モード設定】");
+                sender.sendMessage(ChatColor.YELLOW + "/gemini image settings" + ChatColor.WHITE + " - 設定メニュー");
+                sender.sendMessage(ChatColor.YELLOW + "/gemini imagemodel" + ChatColor.WHITE + " - 画像モデル切替");
+                sender.sendMessage(ChatColor.YELLOW + "/gemini image ratio <値>" + ChatColor.WHITE + " - アスペクト比変更");
+                sender.sendMessage(ChatColor.YELLOW + "/gemini image resolution <値>" + ChatColor.WHITE + " - 解像度変更(Proのみ)");
                 break;
 
             default:
@@ -2365,7 +2393,6 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 player.sendMessage(ChatColor.AQUA + "[" + npcName + "] " + ChatColor.WHITE + finalResponse);
                 player.sendMessage("");
                 player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
-                player.sendMessage(ChatColor.GRAY + "  " + ChatColor.YELLOW + "/exit" + ChatColor.GRAY + " → メニューに戻る");
                 player.sendMessage("");
             });
         } else {
@@ -2429,7 +2456,6 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
             player.sendMessage("");
             player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
-            player.sendMessage(ChatColor.GRAY + "  " + ChatColor.YELLOW + "/exit" + ChatColor.GRAY + " → メニューに戻る");
             player.sendMessage("");
         });
     }
