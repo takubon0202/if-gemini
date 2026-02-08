@@ -122,7 +122,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
 
         getLogger().info("========================================");
-        getLogger().info("GeminiNPC Plugin v1.7.0 Enabled!");
+        getLogger().info("GeminiNPC Plugin v1.8.0 Enabled!");
         getLogger().info("Default Model: " + defaultModelName);
         getLogger().info("Default Image Model: " + defaultImageModel);
         getLogger().info("Image Hosting: " + imageHosting);
@@ -2257,7 +2257,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             conn.setRequestMethod("POST");
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-            conn.setRequestProperty("User-Agent", "GeminiNPC/1.7.0");
+            conn.setRequestProperty("User-Agent", "GeminiNPC/1.8.0");
             conn.setConnectTimeout(15000);
             conn.setReadTimeout(60000);
 
