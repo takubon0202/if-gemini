@@ -4,7 +4,7 @@
   <groupId>com.gemininpc</groupId>
   <artifactId>GeminiNPC</artifactId>
   <name>GeminiNPC</name>
-  <version>1.5.7</version>
+  <version>1.6.0</version>
   <description>Minecraft NPC AI Chat Plugin using Google Gemini</description>
   <build>
     <defaultGoal>clean package</defaultGoal>
@@ -64,7 +64,7 @@
     </dependency>
   </dependencies>
   <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <java.version>21</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 </project>
