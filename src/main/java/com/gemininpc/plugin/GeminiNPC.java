@@ -453,7 +453,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     private void showWelcomeMessage(Player player) {
         player.sendMessage("");
         player.sendMessage(ChatColor.GOLD + "╔═══════════════════════════════════════════════╗");
-        player.sendMessage(ChatColor.GOLD + "║  " + ChatColor.GREEN + "GeminiNPC AI相談システム" + ChatColor.GOLD + "                   ║");
+        player.sendMessage(ChatColor.GOLD + "║  " + ChatColor.GREEN + "if-Gemini AI相談システム" + ChatColor.GOLD + "                   ║");
         player.sendMessage(ChatColor.GOLD + "╠═══════════════════════════════════════════════╣");
         player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.WHITE + "AIがあなたをサポートします！" + ChatColor.GOLD + "                ║");
         player.sendMessage(ChatColor.GOLD + "║                                               ║");
@@ -1050,7 +1050,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             }
 
             loadConfiguration();
-            sender.sendMessage(ChatColor.GREEN + "GeminiNPC設定をリロードしました。");
+            sender.sendMessage(ChatColor.GREEN + "if-Gemini設定をリロードしました。");
             return true;
         }
 
@@ -1247,7 +1247,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage("");
         player.sendMessage(ChatColor.GREEN + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         player.sendMessage("");
-        player.sendMessage(ChatColor.GREEN + "  ✓ " + ChatColor.WHITE + "GeminiNPC システムを起動しました！");
+        player.sendMessage(ChatColor.GREEN + "  ✓ " + ChatColor.WHITE + "if-Gemini システムを起動しました！");
         player.sendMessage("");
         player.sendMessage(ChatColor.GRAY + "  使用モデル: " + ChatColor.AQUA + model);
         player.sendMessage("");
@@ -1261,7 +1261,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     private void showMainMenu(Player player) {
         player.sendMessage("");
         player.sendMessage(ChatColor.GOLD + "╔═══════════════════════════════════════════════╗");
-        player.sendMessage(ChatColor.GOLD + "║  " + ChatColor.GREEN + "GeminiNPC メインメニュー" + ChatColor.GOLD + "                   ║");
+        player.sendMessage(ChatColor.GOLD + "║  " + ChatColor.GREEN + "if-Gemini メインメニュー" + ChatColor.GOLD + "                   ║");
         player.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════════════╝");
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  機能を選んでください" + ChatColor.GRAY + " (クリックで選択):");
@@ -2127,7 +2127,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GOLD + "╔═══════════════════════════════════════════════╗");
-        sender.sendMessage(ChatColor.GOLD + "║  " + ChatColor.GREEN + "GeminiNPC ヘルプ" + ChatColor.GRAY + " - ページ " + page + "/" + TOTAL_PAGES + ChatColor.GOLD + "             ║");
+        sender.sendMessage(ChatColor.GOLD + "║  " + ChatColor.GREEN + "if-Gemini ヘルプ" + ChatColor.GRAY + " - ページ " + page + "/" + TOTAL_PAGES + ChatColor.GOLD + "             ║");
         sender.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════════════╝");
 
         switch (page) {
@@ -2180,7 +2180,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     private void showHelpPage1(CommandSender sender) {
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【概要】");
-        sender.sendMessage(ChatColor.WHITE + "GeminiNPCは、Google Gemini AIを使った");
+        sender.sendMessage(ChatColor.WHITE + "if-Geminiは、Google Gemini AIを使った");
         sender.sendMessage(ChatColor.WHITE + "相談・検索システムです。");
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GREEN + "【始め方】");

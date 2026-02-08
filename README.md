@@ -1,4 +1,4 @@
-# GeminiNPC v2.1.1 - Minecraft AI 多機能プラグイン
+# if-Gemini v2.1.2 - Minecraft AI 多機能プラグイン
 
 MinecraftサーバーでGoogle Gemini AIを使った**相談・Web検索・コマンド生成・画像生成**を提供するSpigotプラグインです。
 
@@ -341,6 +341,12 @@ JARファイルは `target/` に生成され、`builds/` フォルダにもコ�
 ---
 
 ## 変更履歴
+
+### v2.1.2
+- プラグイン表示名を「GeminiNPC」から「if-Gemini」にリブランド
+- enchantments構文をMC 1.21〜1.21.4対応に修正（`levels:` キー必須）
+- SNBTキーのダブルクォート除去（標準SNBT形式に準拠）
+- システムプロンプトに全身装備の完全な例を追加
 
 ### v2.1.1
 - チャットベース入力に移行 - `/` プレフィックス不要で直接入力可能に
