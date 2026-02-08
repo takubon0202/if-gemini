@@ -1497,6 +1497,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage("");
         player.sendMessage(ChatColor.YELLOW + "  コマンド:");
 
+        // Auto-fix snake_case and syntax issues in AI-generated commands
+        for (int i = 0; i < commands.size(); i++) {
+            commands.set(i, fixCommandSyntax(commands.get(i)));
+        }
+
         for (int i = 0; i < commands.size(); i++) {
             String cmd = commands.get(i);
             if (commands.size() > 1) {
@@ -1522,6 +1527,91 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
 
         sendModeFooter(player);
+    }
+
+    private String fixCommandSyntax(String command) {
+        if (command == null || command.isEmpty()) return command;
+
+        // Fix item IDs (missing underscores)
+        command = command.replace("diamondsword", "diamond_sword");
+        command = command.replace("netheritesword", "netherite_sword");
+        command = command.replace("ironsword", "iron_sword");
+        command = command.replace("stonesword", "stone_sword");
+        command = command.replace("goldensword", "golden_sword");
+        command = command.replace("woodensword", "wooden_sword");
+        command = command.replace("diamondpickaxe", "diamond_pickaxe");
+        command = command.replace("netheritepickaxe", "netherite_pickaxe");
+        command = command.replace("ironpickaxe", "iron_pickaxe");
+        command = command.replace("diamondaxe", "diamond_axe");
+        command = command.replace("netheriteaxe", "netherite_axe");
+        command = command.replace("diamondshovel", "diamond_shovel");
+        command = command.replace("netheriteshovel", "netherite_shovel");
+        command = command.replace("diamondhoe", "diamond_hoe");
+        command = command.replace("netheritehoe", "netherite_hoe");
+        command = command.replace("diamondhelmet", "diamond_helmet");
+        command = command.replace("netheritehelmet", "netherite_helmet");
+        command = command.replace("ironhelmet", "iron_helmet");
+        command = command.replace("diamondchestplate", "diamond_chestplate");
+        command = command.replace("netheritechestplate", "netherite_chestplate");
+        command = command.replace("ironchestplate", "iron_chestplate");
+        command = command.replace("diamondleggings", "diamond_leggings");
+        command = command.replace("netheriteleggings", "netherite_leggings");
+        command = command.replace("ironleggings", "iron_leggings");
+        command = command.replace("diamondboots", "diamond_boots");
+        command = command.replace("netheriteboots", "netherite_boots");
+        command = command.replace("ironboots", "iron_boots");
+        command = command.replace("goldenapple", "golden_apple");
+        command = command.replace("enchantedgoldenapple", "enchanted_golden_apple");
+        command = command.replace("enderpearl", "ender_pearl");
+        command = command.replace("splashpotion", "splash_potion");
+        command = command.replace("lingeringpotion", "lingering_potion");
+        command = command.replace("totemofundying", "totem_of_undying");
+        command = command.replace("nametag", "name_tag");
+        command = command.replace("lightningbolt", "lightning_bolt");
+        command = command.replace("irongolem", "iron_golem");
+
+        // Fix component names (missing underscores)
+        command = command.replace("customname=", "custom_name=");
+        command = command.replace("customname =", "custom_name =");
+        command = command.replace("dyedcolor=", "dyed_color=");
+        command = command.replace("potioncontents=", "potion_contents=");
+        command = command.replace("customeffects", "custom_effects");
+
+        // Fix enchantment IDs (missing underscores)
+        command = command.replace("fireaspect", "fire_aspect");
+        command = command.replace("baneofarthropods", "bane_of_arthropods");
+        command = command.replace("sweepingedge", "sweeping_edge");
+        command = command.replace("silktouch", "silk_touch");
+        command = command.replace("fireprotection", "fire_protection");
+        command = command.replace("blastprotection", "blast_protection");
+        command = command.replace("projectileprotection", "projectile_protection");
+        command = command.replace("featherfalling", "feather_falling");
+        command = command.replace("depthstrider", "depth_strider");
+        command = command.replace("frostwalker", "frost_walker");
+        command = command.replace("soulspeed", "soul_speed");
+        command = command.replace("swiftsneak", "swift_sneak");
+        command = command.replace("quickcharge", "quick_charge");
+        command = command.replace("aquaaffinity", "aqua_affinity");
+        command = command.replace("windcharge", "wind_charge");
+        command = command.replace("windburst", "wind_burst");
+        command = command.replace("miningfatigue", "mining_fatigue");
+
+        // Fix effect IDs (missing underscores)
+        command = command.replace("jumpboost", "jump_boost");
+        command = command.replace("instanthealth", "instant_health");
+        command = command.replace("instantdamage", "instant_damage");
+        command = command.replace("fireresistance", "fire_resistance");
+        command = command.replace("waterbreathing", "water_breathing");
+        command = command.replace("nightvision", "night_vision");
+        command = command.replace("slowfalling", "slow_falling");
+        command = command.replace("conduitpower", "conduit_power");
+        command = command.replace("dolphinsgrace", "dolphins_grace");
+        command = command.replace("windcharged", "wind_charged");
+        command = command.replace("trialomen", "trial_omen");
+        command = command.replace("raidomen", "raid_omen");
+        command = command.replace("badomen", "bad_omen");
+
+        return command;
     }
 
     private String getCommandGenerationSystemPrompt() {
