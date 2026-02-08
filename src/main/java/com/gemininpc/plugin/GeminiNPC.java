@@ -163,7 +163,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
 
         getLogger().info("========================================");
-        getLogger().info("GeminiNPC Plugin v2.0.0 Enabled!");
+        getLogger().info("GeminiNPC Plugin v2.0.1 Enabled!");
         getLogger().info("Default Model: " + defaultModelName);
         getLogger().info("Default Image Model: " + defaultImageModel);
         getLogger().info("Image Hosting: " + imageHosting);
@@ -271,6 +271,26 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "4. 次に何をすればいいか、具体的なアクションを1つ提案する\n" +
                "5. 優しく励ますトーンで話す\n" +
                "6. 質問で終わり、対話を促す";
+    }
+
+    private String getImageGenerationSystemPrompt() {
+        return "あなたは画像生成AIアシスタントです。\n" +
+               "以下のルールを必ず守ってください：\n\n" +
+               "【ローマ字入力の解釈】\n" +
+               "ユーザーはMinecraftのチャットから入力するため、日本語を直接入力できず、ローマ字（romaji）で日本語の意味を伝えることがあります。\n" +
+               "ローマ字で書かれた日本語を自動的に理解して、その意味に従って画像を生成してください。\n\n" +
+               "例:\n" +
+               "- 'animefuunisite' → 'アニメ風にして' という意味です\n" +
+               "- 'kawaiinekonomimi' → 'かわいい猫耳' という意味です\n" +
+               "- 'yuuyakenoumi' → '夕焼けの海' という意味です\n" +
+               "- 'nihonnoteien' → '日本の庭園' という意味です\n" +
+               "- 'fantajiinosekai' → 'ファンタジーの世界' という意味です\n" +
+               "- 'suibokugafuu' → '水墨画風' という意味です\n" +
+               "- 'minecraftnosekai' → 'Minecraftの世界' という意味です\n\n" +
+               "【画像生成の方針】\n" +
+               "- ユーザーの指示に忠実に従う\n" +
+               "- 高品質な画像を生成する\n" +
+               "- Image-to-Image（元画像がある場合）は元画像の構図を維持しつつ指示に従って変換する";
     }
 
     private String getWebSearchSystemPrompt() {
@@ -520,7 +540,8 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             return;
         }
 
-        String command = event.getMessage().toLowerCase();
+        String rawMessage = event.getMessage();
+        String command = rawMessage.toLowerCase();
 
         // Always allow these commands
         if (command.equals("/gemini") || command.startsWith("/gemini ")) {
@@ -642,7 +663,8 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         // Handle image generation mode
         if (mode == SessionMode.IMAGE) {
             event.setCancelled(true);
-            String input = command.substring(1).trim();
+            String input = command.substring(1).trim(); // lowercase for command matching
+            String rawInput = rawMessage.substring(1).trim(); // preserve original case for URLs/prompts
 
             // Handle image model change within image mode
             if (input.equals("model") || input.equals("モデル")) {
@@ -700,11 +722,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             final String capturedRatio = getPlayerAspectRatio(playerId);
             final String capturedRes = getPlayerResolution(playerId);
 
-            // Check for Image-to-Image: URL detection
-            Matcher urlMatcher = URL_PATTERN.matcher(input);
+            // Check for Image-to-Image: URL detection (use rawInput to preserve URL case)
+            Matcher urlMatcher = URL_PATTERN.matcher(rawInput);
             if (urlMatcher.find()) {
                 final String sourceUrl = urlMatcher.group(1);
-                final String i2iPrompt = input.replace(sourceUrl, "").trim();
+                final String i2iPrompt = rawInput.replace(sourceUrl, "").trim();
 
                 if (i2iPrompt.isEmpty()) {
                     player.sendMessage(ChatColor.RED + "画像URLの後にプロンプトを入力してください。");
@@ -714,6 +736,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 }
 
                 player.sendMessage(ChatColor.LIGHT_PURPLE + "[Image-to-Image] " + ChatColor.WHITE + i2iPrompt);
+                player.sendMessage(ChatColor.DARK_GRAY + "  元画像: " + ChatColor.GRAY + sourceUrl);
                 player.sendMessage(ChatColor.DARK_GRAY + "  モデル: " + getImageModelDisplayName(capturedModel) + " | 比率: " + capturedRatio + " | 解像度: " + capturedRes);
                 player.sendMessage(ChatColor.LIGHT_PURPLE + "✦ " + ChatColor.GRAY + "元画像をダウンロード中...");
 
@@ -723,7 +746,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 return;
             }
 
-            player.sendMessage(ChatColor.LIGHT_PURPLE + "[画像生成] " + ChatColor.WHITE + input);
+            player.sendMessage(ChatColor.LIGHT_PURPLE + "[画像生成] " + ChatColor.WHITE + rawInput);
             player.sendMessage(ChatColor.DARK_GRAY + "  モデル: " + getImageModelDisplayName(capturedModel) + " | 比率: " + capturedRatio + " | 解像度: " + capturedRes);
             if (MODEL_NANOBANANA_PRO.equals(capturedModel)) {
                 if (RESOLUTION_4K.equals(capturedRes)) {
@@ -736,7 +759,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             }
 
             Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-                processImageGeneration(player, input, capturedModel, capturedRatio, capturedRes);
+                processImageGeneration(player, rawInput, capturedModel, capturedRatio, capturedRes);
             });
             return;
         }
@@ -1241,12 +1264,13 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.LIGHT_PURPLE + "    /<画像の説明>" + ChatColor.GRAY + " → 画像を生成");
         player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "/夕焼けの海");
         player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "/かわいい猫がMinecraftで遊んでいる");
+        player.sendMessage(ChatColor.DARK_GRAY + "      ※ローマ字OK: /yuuyakenoumi → 夕焼けの海");
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  画像から画像を生成" + ChatColor.GRAY + " (Image-to-Image):");
         player.sendMessage(ChatColor.AQUA + "    /https://画像URL プロンプト" + ChatColor.GRAY + " → 画像を変換");
-        player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "/https://example.com/img.png アニメ風にして");
+        player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "/https://example.com/img.png animefuunisite");
         player.sendMessage("");
-        player.sendMessage(ChatColor.WHITE + "  設定変更" + ChatColor.GRAY + " (クリックで操作):");
+        player.sendMessage(ChatColor.WHITE + "  操作" + ChatColor.GRAY + " (クリック):");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
             createClickableButton("[設定一覧]", "/settings", "クリックで設定を表示", net.md_5.bungee.api.ChatColor.YELLOW),
@@ -1254,9 +1278,10 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             createClickableButton("[モデル変更]", "/model", "クリックでモデル選択", net.md_5.bungee.api.ChatColor.AQUA),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             createClickableButton("[比率変更]", "/settings", "クリックで比率を変更", net.md_5.bungee.api.ChatColor.GREEN));
-        player.sendMessage("");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
+            createClickableButton("[ライブラリ]", "/library", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
+            text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
     }
@@ -1598,7 +1623,10 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 text("  ", net.md_5.bungee.api.ChatColor.GRAY),
                 createSuggestButton("[続けて生成]", "/", "/<画像の説明> を入力して画像を生成", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, false),
                 text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-                createClickableButton("[設定変更]", "/settings", "クリックで設定を表示", net.md_5.bungee.api.ChatColor.YELLOW),
+                createClickableButton("[設定変更]", "/settings", "クリックで設定を表示", net.md_5.bungee.api.ChatColor.YELLOW));
+            sendClickableLine(player,
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[ライブラリ]", "/gemini library", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
                 text("  ", net.md_5.bungee.api.ChatColor.GRAY),
                 createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
             player.sendMessage("");
@@ -1622,7 +1650,9 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.GRAY + "画像モデル: " + ChatColor.LIGHT_PURPLE + getImageModelDisplayName(getPlayerImageModel(playerId)) + ChatColor.GOLD + " ║");
         player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.GRAY + "アスペクト比: " + ChatColor.WHITE + getPlayerAspectRatio(playerId) + ChatColor.GOLD + "                      ║");
         player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.GRAY + "解像度: " + ChatColor.WHITE + getPlayerResolution(playerId) + ChatColor.GOLD + "                            ║");
+        int librarySize = playerImageLibrary.containsKey(playerId) ? playerImageLibrary.get(playerId).size() : 0;
         player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.GRAY + "会話履歴: " + ChatColor.WHITE + historySize + " メッセージ" + ChatColor.GOLD + "                ║");
+        player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.GRAY + "ライブラリ: " + ChatColor.WHITE + librarySize + " 枚" + ChatColor.GOLD + "                       ║");
         player.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════════════╝");
         player.sendMessage("");
         sendClickableLine(player,
@@ -2208,19 +2238,26 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     private void processI2IGeneration(Player player, String prompt, String sourceUrl, String imageModel, String aspectRatio, String resolution) {
         try {
             // Step 1: Download source image
-            byte[] sourceImage;
+            DownloadResult downloadResult;
             try {
-                sourceImage = downloadImage(sourceUrl);
+                getLogger().info("I2I: Downloading image from: " + sourceUrl);
+                downloadResult = downloadImageWithMeta(sourceUrl);
+                getLogger().info("I2I: Downloaded " + downloadResult.data.length + " bytes, type: " + downloadResult.contentType);
             } catch (Exception e) {
+                getLogger().warning("I2I: Download failed: " + e.getMessage());
                 Bukkit.getScheduler().runTask(this, () -> {
                     if (!player.isOnline()) return;
-                    player.sendMessage(ChatColor.RED + "[Image-to-Image] 元画像のダウンロードに失敗しました: " + e.getMessage());
+                    player.sendMessage(ChatColor.RED + "[Image-to-Image] 元画像のダウンロードに失敗しました:");
+                    player.sendMessage(ChatColor.RED + "  " + e.getMessage());
                     player.sendMessage(ChatColor.GRAY + "URLが正しいか確認してください。対応形式: JPEG, PNG, WebP");
+                    player.sendMessage(ChatColor.GRAY + "ヒント: 画像に直接リンクするURLを使用してください。");
                 });
                 return;
             }
 
-            String mimeType = detectMimeType(sourceUrl);
+            byte[] sourceImage = downloadResult.data;
+            String mimeType = detectMimeType(sourceUrl, downloadResult.contentType);
+            getLogger().info("I2I: Detected MIME type: " + mimeType);
 
             Bukkit.getScheduler().runTask(this, () -> {
                 if (!player.isOnline()) return;
@@ -2277,53 +2314,109 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
     }
 
-    // Image-to-Image: Download source image from URL
-    private byte[] downloadImage(String imageUrl) throws Exception {
-        URL url = new URL(imageUrl);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("GET");
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-        conn.setConnectTimeout(15000);
-        conn.setReadTimeout(15000);
-        conn.setInstanceFollowRedirects(true);
-
-        int responseCode = conn.getResponseCode();
-        if (responseCode != HttpURLConnection.HTTP_OK) {
-            conn.disconnect();
-            throw new Exception("HTTP " + responseCode);
+    // Image-to-Image: Download source image from URL with manual redirect following
+    private static class DownloadResult {
+        byte[] data;
+        String contentType;
+        DownloadResult(byte[] data, String contentType) {
+            this.data = data;
+            this.contentType = contentType;
         }
-
-        // Check content length
-        long contentLength = conn.getContentLengthLong();
-        if (contentLength > MAX_IMAGE_DOWNLOAD_SIZE) {
-            conn.disconnect();
-            throw new Exception("画像が大きすぎます (最大10MB)");
-        }
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (java.io.InputStream is = conn.getInputStream()) {
-            byte[] buffer = new byte[8192];
-            int read;
-            long totalRead = 0;
-            while ((read = is.read(buffer)) != -1) {
-                totalRead += read;
-                if (totalRead > MAX_IMAGE_DOWNLOAD_SIZE) {
-                    throw new Exception("画像が大きすぎます (最大10MB)");
-                }
-                baos.write(buffer, 0, read);
-            }
-        } finally {
-            conn.disconnect();
-        }
-        return baos.toByteArray();
     }
 
-    private String detectMimeType(String url) {
+    private DownloadResult downloadImageWithMeta(String imageUrl) throws Exception {
+        String currentUrl = imageUrl;
+        int maxRedirects = 5;
+
+        for (int i = 0; i < maxRedirects; i++) {
+            URL url = new URL(currentUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            conn.setRequestProperty("Accept", "image/*, */*");
+            conn.setRequestProperty("Accept-Language", "ja,en-US;q=0.9,en;q=0.8");
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(30000);
+            conn.setInstanceFollowRedirects(false); // Handle redirects manually for cross-protocol
+
+            int responseCode = conn.getResponseCode();
+
+            // Handle redirects manually (including HTTP->HTTPS and HTTPS->HTTP)
+            if (responseCode == HttpURLConnection.HTTP_MOVED_PERM ||
+                responseCode == HttpURLConnection.HTTP_MOVED_TEMP ||
+                responseCode == 307 || responseCode == 308) {
+                String location = conn.getHeaderField("Location");
+                conn.disconnect();
+                if (location == null || location.isEmpty()) {
+                    throw new Exception("リダイレクト先が見つかりません");
+                }
+                // Handle relative URLs
+                if (location.startsWith("/")) {
+                    URL base = new URL(currentUrl);
+                    location = base.getProtocol() + "://" + base.getHost() + location;
+                }
+                currentUrl = location;
+                getLogger().info("Image download redirect: " + currentUrl);
+                continue;
+            }
+
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                conn.disconnect();
+                throw new Exception("HTTP " + responseCode + " (" + currentUrl + ")");
+            }
+
+            // Check content length
+            long contentLength = conn.getContentLengthLong();
+            if (contentLength > MAX_IMAGE_DOWNLOAD_SIZE) {
+                conn.disconnect();
+                throw new Exception("画像が大きすぎます (" + (contentLength / 1024 / 1024) + "MB, 最大10MB)");
+            }
+
+            String contentType = conn.getContentType();
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try (java.io.InputStream is = conn.getInputStream()) {
+                byte[] buffer = new byte[8192];
+                int read;
+                long totalRead = 0;
+                while ((read = is.read(buffer)) != -1) {
+                    totalRead += read;
+                    if (totalRead > MAX_IMAGE_DOWNLOAD_SIZE) {
+                        throw new Exception("画像が大きすぎます (最大10MB)");
+                    }
+                    baos.write(buffer, 0, read);
+                }
+            } finally {
+                conn.disconnect();
+            }
+
+            byte[] data = baos.toByteArray();
+            if (data.length == 0) {
+                throw new Exception("ダウンロードしたデータが空です");
+            }
+
+            return new DownloadResult(data, contentType);
+        }
+
+        throw new Exception("リダイレクトが多すぎます");
+    }
+
+    private String detectMimeType(String url, String contentType) {
+        // First try Content-Type header
+        if (contentType != null && !contentType.isEmpty()) {
+            String ct = contentType.toLowerCase();
+            if (ct.contains("image/png")) return "image/png";
+            if (ct.contains("image/jpeg") || ct.contains("image/jpg")) return "image/jpeg";
+            if (ct.contains("image/webp")) return "image/webp";
+            if (ct.contains("image/gif")) return "image/gif";
+        }
+        // Fall back to URL extension
         String lower = url.toLowerCase();
         if (lower.contains(".png")) return "image/png";
         if (lower.contains(".jpg") || lower.contains(".jpeg")) return "image/jpeg";
         if (lower.contains(".webp")) return "image/webp";
-        // Default to png
+        if (lower.contains(".gif")) return "image/gif";
+        // Default: check magic bytes would be ideal, but fall back to png
         return "image/png";
     }
 
@@ -2341,6 +2434,15 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             connection.setReadTimeout(180000);
 
             JsonObject requestBody = new JsonObject();
+
+            // System instruction for romaji support
+            JsonObject systemInstruction = new JsonObject();
+            JsonArray systemParts = new JsonArray();
+            JsonObject systemText = new JsonObject();
+            systemText.addProperty("text", getImageGenerationSystemPrompt());
+            systemParts.add(systemText);
+            systemInstruction.add("parts", systemParts);
+            requestBody.add("systemInstruction", systemInstruction);
 
             // Contents with text + inline_data
             JsonArray contents = new JsonArray();
@@ -2484,6 +2586,15 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             connection.setReadTimeout(180000); // 3 minutes for image generation
 
             JsonObject requestBody = new JsonObject();
+
+            // System instruction for romaji support
+            JsonObject systemInstruction = new JsonObject();
+            JsonArray systemParts = new JsonArray();
+            JsonObject systemText = new JsonObject();
+            systemText.addProperty("text", getImageGenerationSystemPrompt());
+            systemParts.add(systemText);
+            systemInstruction.add("parts", systemParts);
+            requestBody.add("systemInstruction", systemInstruction);
 
             // Contents
             JsonArray contents = new JsonArray();
