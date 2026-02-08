@@ -6,7 +6,7 @@
 
     <groupId>com.gemininpc</groupId>
     <artifactId>GeminiNPC</artifactId>
-    <version>1.0.0</version>
+    <version>1.6.0</version>
     <packaging>jar</packaging>
 
     <name>GeminiNPC</name>
@@ -71,11 +71,11 @@
     </repositories>
 
     <dependencies>
-        <!-- Spigot API for Minecraft 1.21.1 -->
+        <!-- Spigot API for Minecraft 1.21.11 -->
         <dependency>
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
-            <version>1.21.4-R0.1-SNAPSHOT</version>
+            <version>1.21.11-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <!-- GSON for JSON handling -->

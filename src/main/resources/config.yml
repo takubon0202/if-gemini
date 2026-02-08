@@ -8,7 +8,10 @@ gemini:
   api-key: "YOUR_API_KEY_HERE"
 
   # 使用するGeminiモデル
-  model: "gemini-2.0-flash"
+  # 利用可能なモデル:
+  #   - gemini-3-flash-preview (高速・軽量)
+  #   - gemini-3-pro-preview (高性能・詳細な応答)
+  model: "gemini-3-flash-preview"
 
   # システムプロンプト（AIの性格と回答スタイルを定義）
   system-prompt: |
@@ -16,7 +19,7 @@ gemini:
     以下のルールを必ず守ってください：
 
     【回答の長さ】
-    - 回答は必ず200文字以内で簡潔に
+    - 回答は必ず400文字以内で簡潔に
 
     【回答のスタイル】
     1. まず相手の言葉を受け止め、共感を示す（「〜なんだね」「〜と感じているんだね」）
@@ -39,3 +42,31 @@ npc:
 conversation:
   # 会話履歴の最大保持数
   max-history: 20
+
+# 画像生成設定
+image:
+  # 画像ホスティングサービス（imgbb または catbox）
+  # imgbb: APIキーが必要だが安定・高速
+  # catbox: APIキー不要・無料
+  hosting: "catbox"
+
+  # ImgBB APIキー（hostingが"imgbb"の場合に必要）
+  # https://api.imgbb.com/ で無料取得可能
+  imgbb-api-key: "YOUR_IMGBB_API_KEY_HERE"
+
+  # デフォルトの画像生成モデル
+  # 利用可能なモデル:
+  #   - gemini-2.5-flash-image (Nanobanana: 高速・軽量)
+  #   - gemini-3-pro-image-preview (Nanobanana Pro: 高品質・4K対応)
+  default-model: "gemini-2.5-flash-image"
+
+  # アスペクト比（1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9）
+  aspect-ratio: "1:1"
+
+  # デフォルト解像度（Nanobanana Proのみ対応）
+  # 利用可能な解像度:
+  #   - 1K (1024px: 標準画質)
+  #   - 2K (2048px: 高画質)
+  #   - 4K (4096px: 超高画質 ※コストが約2倍になります)
+  # ※Nanobanana (Flash) は1Kのみ対応
+  default-resolution: "1K"

@@ -4,7 +4,7 @@
   <groupId>com.gemininpc</groupId>
   <artifactId>GeminiNPC</artifactId>
   <name>GeminiNPC</name>
-  <version>1.0.0</version>
+  <version>1.5.7</version>
   <description>Minecraft NPC AI Chat Plugin using Google Gemini</description>
   <build>
     <defaultGoal>clean package</defaultGoal>
@@ -59,7 +59,7 @@
     <dependency>
       <groupId>org.spigotmc</groupId>
       <artifactId>spigot-api</artifactId>
-      <version>1.21.4-R0.1-SNAPSHOT</version>
+      <version>1.21.11-R0.1-SNAPSHOT</version>
       <scope>provided</scope>
     </dependency>
   </dependencies>

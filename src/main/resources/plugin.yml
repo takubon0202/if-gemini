@@ -1,19 +1,27 @@
 name: GeminiNPC
-version: '1.0.0'
+version: '1.6.0'
 main: com.gemininpc.plugin.GeminiNPC
 api-version: '1.21'
 authors: [MinecraftAI]
-description: Minecraft NPC AI Counseling Plugin using Google Gemini
+description: Minecraft NPC AI Counseling Plugin using Google Gemini with Web Search
 
 commands:
   gemini:
-    description: Start counseling mode or send a message
-    usage: /gemini [message]
+    description: Start GeminiNPC system and show main menu
+    usage: /gemini [chat|search|image|model|help|status|menu|exit|clear]
     aliases: [ai, counsel]
+  websearch:
+    description: Search the web using AI (requires active session)
+    usage: /websearch <query>
+    aliases: [ws, search]
   exit:
-    description: End counseling mode
+    description: Exit current mode or close system
     usage: /exit
     aliases: [quit, end]
+  geminimodel:
+    description: Select AI model (requires active session)
+    usage: /geminimodel [flash|pro]
+    aliases: [gmodel]
   geminireload:
     description: Reload GeminiNPC configuration
     usage: /geminireload
@@ -23,8 +31,12 @@ commands:
     usage: /geminiclear
   geminihelp:
     description: Show help
-    usage: /geminihelp
+    usage: /geminihelp [page|topic]
     aliases: [ghelp]
+  geminiimage:
+    description: Generate images using AI (requires active session)
+    usage: /geminiimage <prompt>
+    aliases: [gimage, img]
 
 permissions:
   gemininpc.reload:
@@ -32,4 +44,10 @@ permissions:
     default: op
   gemininpc.use:
     description: Allows using the GeminiNPC chat features
+    default: true
+  gemininpc.websearch:
+    description: Allows using web search feature
+    default: true
+  gemininpc.image:
+    description: Allows using AI image generation feature
     default: true
