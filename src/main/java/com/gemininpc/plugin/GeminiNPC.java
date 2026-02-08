@@ -356,6 +356,14 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        UUID playerId = player.getUniqueId();
+
+        // Initialize default settings for this player
+        playerModels.putIfAbsent(playerId, MODEL_FLASH);
+        playerImageModels.putIfAbsent(playerId, defaultImageModel);
+        playerAspectRatios.putIfAbsent(playerId, defaultAspectRatio);
+        playerResolutions.putIfAbsent(playerId, defaultResolution);
+
         Bukkit.getScheduler().runTaskLater(this, () -> {
             showWelcomeMessage(player);
         }, 40L);
@@ -569,6 +577,10 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             String input = command.substring(1).trim();
 
             // Handle image model change within image mode
+            if (input.equals("model") || input.equals("モデル")) {
+                showImageModelSelection(player);
+                return;
+            }
             if (input.startsWith("model ") || input.startsWith("モデル ")) {
                 String modelArg = input.substring(input.indexOf(' ') + 1).trim();
                 handleImageModelChange(player, modelArg);
@@ -1105,7 +1117,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage("");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[メニューに戻る]", "/exit", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+            createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
     }
 
@@ -1127,13 +1139,13 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             sendClickableLine(player,
                 text("  ", net.md_5.bungee.api.ChatColor.GREEN),
                 text("► ", net.md_5.bungee.api.ChatColor.GREEN),
-                createClickableButton("[Nanobanana]", "/model nanobanana", "現在使用中", net.md_5.bungee.api.ChatColor.AQUA, true),
+                createClickableButton("[Nanobanana]", "/gemini imagemodel nanobanana", "現在使用中", net.md_5.bungee.api.ChatColor.AQUA, true),
                 text(" - 高速  ", net.md_5.bungee.api.ChatColor.WHITE),
                 text("[使用中]", net.md_5.bungee.api.ChatColor.GREEN));
         } else {
             sendClickableLine(player,
                 text("    ", net.md_5.bungee.api.ChatColor.GRAY),
-                createClickableButton("[Nanobanana]", "/model nanobanana", "クリックでNanobananaに変更", net.md_5.bungee.api.ChatColor.AQUA),
+                createClickableButton("[Nanobanana]", "/gemini imagemodel nanobanana", "クリックでNanobananaに変更", net.md_5.bungee.api.ChatColor.AQUA),
                 text(" - 高速", net.md_5.bungee.api.ChatColor.GRAY));
         }
         player.sendMessage(ChatColor.GRAY + "      速度: ★★★★★ | 高速で軽快な画像生成");
@@ -1145,13 +1157,13 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             sendClickableLine(player,
                 text("  ", net.md_5.bungee.api.ChatColor.GREEN),
                 text("► ", net.md_5.bungee.api.ChatColor.GREEN),
-                createClickableButton("[Nanobanana Pro]", "/model nanobanana-pro", "現在使用中", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, true),
+                createClickableButton("[Nanobanana Pro]", "/gemini imagemodel nanobanana-pro", "現在使用中", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, true),
                 text(" - 高品質  ", net.md_5.bungee.api.ChatColor.WHITE),
                 text("[使用中]", net.md_5.bungee.api.ChatColor.GREEN));
         } else {
             sendClickableLine(player,
                 text("    ", net.md_5.bungee.api.ChatColor.GRAY),
-                createClickableButton("[Nanobanana Pro]", "/model nanobanana-pro", "クリックでNanobanana Proに変更", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE),
+                createClickableButton("[Nanobanana Pro]", "/gemini imagemodel nanobanana-pro", "クリックでNanobanana Proに変更", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE),
                 text(" - 高品質", net.md_5.bungee.api.ChatColor.GRAY));
         }
         player.sendMessage(ChatColor.GRAY + "      品質: ★★★★★ | 高品質・4K対応");
@@ -1163,7 +1175,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
             createClickableButton("[設定に戻る]", "/settings", "クリックで設定一覧に戻る", net.md_5.bungee.api.ChatColor.YELLOW),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-            createClickableButton("[メニューに戻る]", "/exit", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+            createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
     }
 
@@ -1244,12 +1256,12 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.GRAY),
             MODEL_NANOBANANA.equals(currentModel)
-                ? createClickableButton("[Nanobanana ✓]", "/model nanobanana", "使用中: Nanobanana (高速)", net.md_5.bungee.api.ChatColor.GREEN, true)
-                : createClickableButton("[Nanobanana]", "/model nanobanana", "クリックで変更: 高速・1Kのみ (~$0.04/枚)", net.md_5.bungee.api.ChatColor.AQUA),
+                ? createClickableButton("[Nanobanana ✓]", "/gemini imagemodel nanobanana", "使用中: Nanobanana (高速)", net.md_5.bungee.api.ChatColor.GREEN, true)
+                : createClickableButton("[Nanobanana]", "/gemini imagemodel nanobanana", "クリックで変更: 高速・1Kのみ (~$0.04/枚)", net.md_5.bungee.api.ChatColor.AQUA),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             isPro
-                ? createClickableButton("[Nanobanana Pro ✓]", "/model nanobanana-pro", "使用中: Nanobanana Pro (高品質)", net.md_5.bungee.api.ChatColor.GREEN, true)
-                : createClickableButton("[Nanobanana Pro]", "/model nanobanana-pro", "クリックで変更: 高品質・4K対応 (~$0.13-0.24/枚)", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE));
+                ? createClickableButton("[Nanobanana Pro ✓]", "/gemini imagemodel nanobanana-pro", "使用中: Nanobanana Pro (高品質)", net.md_5.bungee.api.ChatColor.GREEN, true)
+                : createClickableButton("[Nanobanana Pro]", "/gemini imagemodel nanobanana-pro", "クリックで変更: 高品質・4K対応 (~$0.13-0.24/枚)", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE));
         player.sendMessage("");
 
         // === Aspect ratio selection ===
@@ -1261,9 +1273,9 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             boolean active = ratio.equals(currentRatio);
             TextComponent btn;
             if (active) {
-                btn = createClickableButton("[" + ratio + "]", "/ratio " + ratio, "使用中: " + ratio + " " + getAspectRatioDescription(ratio), net.md_5.bungee.api.ChatColor.GREEN, true);
+                btn = createClickableButton("[" + ratio + "]", "/gemini image ratio " + ratio, "使用中: " + ratio + " " + getAspectRatioDescription(ratio), net.md_5.bungee.api.ChatColor.GREEN, true);
             } else {
-                btn = createClickableButton("[" + ratio + "]", "/ratio " + ratio, "クリックで変更: " + ratio + " " + getAspectRatioDescription(ratio), net.md_5.bungee.api.ChatColor.WHITE);
+                btn = createClickableButton("[" + ratio + "]", "/gemini image ratio " + ratio, "クリックで変更: " + ratio + " " + getAspectRatioDescription(ratio), net.md_5.bungee.api.ChatColor.WHITE);
             }
             ratioRow1.addExtra(btn);
             ratioRow1.addExtra(new TextComponent(" "));
@@ -1276,9 +1288,9 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             boolean active = ratio.equals(currentRatio);
             TextComponent btn;
             if (active) {
-                btn = createClickableButton("[" + ratio + "]", "/ratio " + ratio, "使用中: " + ratio + " " + getAspectRatioDescription(ratio), net.md_5.bungee.api.ChatColor.GREEN, true);
+                btn = createClickableButton("[" + ratio + "]", "/gemini image ratio " + ratio, "使用中: " + ratio + " " + getAspectRatioDescription(ratio), net.md_5.bungee.api.ChatColor.GREEN, true);
             } else {
-                btn = createClickableButton("[" + ratio + "]", "/ratio " + ratio, "クリックで変更: " + ratio + " " + getAspectRatioDescription(ratio), net.md_5.bungee.api.ChatColor.WHITE);
+                btn = createClickableButton("[" + ratio + "]", "/gemini image ratio " + ratio, "クリックで変更: " + ratio + " " + getAspectRatioDescription(ratio), net.md_5.bungee.api.ChatColor.WHITE);
             }
             ratioRow2.addExtra(btn);
             ratioRow2.addExtra(new TextComponent(" "));
@@ -1292,16 +1304,16 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             sendClickableLine(player,
                 text("    ", net.md_5.bungee.api.ChatColor.GRAY),
                 RESOLUTION_1K.equals(currentRes)
-                    ? createClickableButton("[1K ✓]", "/resolution 1K", "使用中: 1K (1024px ~$0.13/枚)", net.md_5.bungee.api.ChatColor.GREEN, true)
-                    : createClickableButton("[1K]", "/resolution 1K", "クリックで変更: 1K (1024px ~$0.13/枚)", net.md_5.bungee.api.ChatColor.WHITE),
+                    ? createClickableButton("[1K ✓]", "/gemini image resolution 1K", "使用中: 1K (1024px ~$0.13/枚)", net.md_5.bungee.api.ChatColor.GREEN, true)
+                    : createClickableButton("[1K]", "/gemini image resolution 1K", "クリックで変更: 1K (1024px ~$0.13/枚)", net.md_5.bungee.api.ChatColor.WHITE),
                 text("  ", net.md_5.bungee.api.ChatColor.GRAY),
                 RESOLUTION_2K.equals(currentRes)
-                    ? createClickableButton("[2K ✓]", "/resolution 2K", "使用中: 2K (2048px ~$0.13/枚)", net.md_5.bungee.api.ChatColor.GREEN, true)
-                    : createClickableButton("[2K]", "/resolution 2K", "クリックで変更: 2K (2048px ~$0.13/枚)", net.md_5.bungee.api.ChatColor.WHITE),
+                    ? createClickableButton("[2K ✓]", "/gemini image resolution 2K", "使用中: 2K (2048px ~$0.13/枚)", net.md_5.bungee.api.ChatColor.GREEN, true)
+                    : createClickableButton("[2K]", "/gemini image resolution 2K", "クリックで変更: 2K (2048px ~$0.13/枚)", net.md_5.bungee.api.ChatColor.WHITE),
                 text("  ", net.md_5.bungee.api.ChatColor.GRAY),
                 RESOLUTION_4K.equals(currentRes)
-                    ? createClickableButton("[4K ✓]", "/resolution 4K", "使用中: 4K (4096px ~$0.24/枚 高コスト)", net.md_5.bungee.api.ChatColor.GREEN, true)
-                    : createClickableButton("[4K]", "/resolution 4K", "クリックで変更: 4K (4096px ~$0.24/枚 高コスト!)", net.md_5.bungee.api.ChatColor.RED));
+                    ? createClickableButton("[4K ✓]", "/gemini image resolution 4K", "使用中: 4K (4096px ~$0.24/枚 高コスト)", net.md_5.bungee.api.ChatColor.GREEN, true)
+                    : createClickableButton("[4K]", "/gemini image resolution 4K", "クリックで変更: 4K (4096px ~$0.24/枚 高コスト!)", net.md_5.bungee.api.ChatColor.RED));
         } else {
             sendClickableLine(player,
                 text("    ", net.md_5.bungee.api.ChatColor.GRAY),
@@ -1315,7 +1327,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             createSuggestButton("[画像を生成する]", "/", "/<画像の説明> を入力して画像を生成", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, true),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
-            createClickableButton("[メニューに戻る]", "/exit", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+            createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
     }
 
@@ -1439,8 +1451,13 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
             player.sendMessage("");
             player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
-            player.sendMessage(ChatColor.GRAY + "  続けて /<説明> で別の画像を生成");
-            player.sendMessage(ChatColor.GRAY + "  " + ChatColor.YELLOW + "/exit" + ChatColor.GRAY + " → メニューに戻る");
+            sendClickableLine(player,
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createSuggestButton("[続けて生成]", "/", "/<画像の説明> を入力して画像を生成", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, false),
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[設定変更]", "/settings", "クリックで設定を表示", net.md_5.bungee.api.ChatColor.YELLOW),
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
             player.sendMessage("");
         });
     }
@@ -1463,10 +1480,13 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.GRAY + "アスペクト比: " + ChatColor.WHITE + getPlayerAspectRatio(playerId) + ChatColor.GOLD + "                      ║");
         player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.GRAY + "解像度: " + ChatColor.WHITE + getPlayerResolution(playerId) + ChatColor.GOLD + "                            ║");
         player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.GRAY + "会話履歴: " + ChatColor.WHITE + historySize + " メッセージ" + ChatColor.GOLD + "                ║");
-        player.sendMessage(ChatColor.GOLD + "╠═══════════════════════════════════════════════╣");
-        player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.YELLOW + "/gemini clear" + ChatColor.GRAY + " で履歴クリア" + ChatColor.GOLD + "              ║");
-        player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.YELLOW + "/gemini menu" + ChatColor.GRAY + " でメニューに戻る" + ChatColor.GOLD + "            ║");
         player.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════════════╝");
+        player.sendMessage("");
+        sendClickableLine(player,
+            text("    ", net.md_5.bungee.api.ChatColor.WHITE),
+            createClickableButton("[履歴クリア]", "/gemini clear", "クリックで会話履歴をクリア", net.md_5.bungee.api.ChatColor.YELLOW),
+            text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+            createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
     }
 
@@ -1512,7 +1532,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.DARK_GRAY + "  ─────────────────────────────────");
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
-            createClickableButton("[メニューに戻る]", "/exit", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+            createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
     }
 
@@ -1601,11 +1621,30 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
         sender.sendMessage("");
         sender.sendMessage(ChatColor.GRAY + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        if (page < TOTAL_PAGES) {
-            sender.sendMessage(ChatColor.YELLOW + "次のページ: " + ChatColor.WHITE + "/gemini help " + (page + 1));
+
+        // Clickable navigation for players
+        if (sender instanceof Player) {
+            Player p = (Player) sender;
+            if (page < TOTAL_PAGES) {
+                sendClickableLine(p,
+                    text("    ", net.md_5.bungee.api.ChatColor.WHITE),
+                    createClickableButton("[次のページ →]", "/gemini help " + (page + 1), "クリックでページ " + (page + 1) + " を表示", net.md_5.bungee.api.ChatColor.YELLOW));
+            }
+            if (page > 1) {
+                sendClickableLine(p,
+                    text("    ", net.md_5.bungee.api.ChatColor.WHITE),
+                    createClickableButton("[← 前のページ]", "/gemini help " + (page - 1), "クリックでページ " + (page - 1) + " を表示", net.md_5.bungee.api.ChatColor.YELLOW));
+            }
+            sendClickableLine(p,
+                text("    ", net.md_5.bungee.api.ChatColor.WHITE),
+                createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+        } else {
+            if (page < TOTAL_PAGES) {
+                sender.sendMessage(ChatColor.YELLOW + "次のページ: " + ChatColor.WHITE + "/gemini help " + (page + 1));
+            }
+            sender.sendMessage(ChatColor.YELLOW + "トピック別: " + ChatColor.WHITE + "/gemini help <トピック>");
+            sender.sendMessage(ChatColor.GRAY + "トピック: chat, search, image, model, commands");
         }
-        sender.sendMessage(ChatColor.YELLOW + "トピック別: " + ChatColor.WHITE + "/gemini help <トピック>");
-        sender.sendMessage(ChatColor.GRAY + "トピック: chat, search, image, model, commands");
         sender.sendMessage("");
     }
 
@@ -1804,6 +1843,17 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 break;
         }
         sender.sendMessage("");
+
+        // Clickable navigation for players
+        if (sender instanceof Player) {
+            Player p = (Player) sender;
+            sendClickableLine(p,
+                text("    ", net.md_5.bungee.api.ChatColor.WHITE),
+                createClickableButton("[ヘルプ一覧]", "/gemini help 1", "クリックでヘルプ一覧を表示", net.md_5.bungee.api.ChatColor.YELLOW),
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+            sender.sendMessage("");
+        }
     }
 
     // ==================== Chat Processing ====================
