@@ -21,19 +21,29 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import com.google.gson.reflect.TypeToken;
+import java.lang.reflect.Type;
 
 import org.bukkit.command.TabCompleter;
 
@@ -102,6 +112,31 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     private final Map<UUID, Long> imageGenerationCooldown = new ConcurrentHashMap<>();
     private static final long IMAGE_COOLDOWN_MS = 10000; // 10 seconds cooldown
 
+    // Library
+    private final Map<UUID, List<ImageRecord>> playerImageLibrary = new ConcurrentHashMap<>();
+    private int maxLibrarySize = 50;
+    // URL detection pattern for Image-to-Image
+    private static final Pattern URL_PATTERN = Pattern.compile("(https?://\\S+)");
+    private static final long MAX_IMAGE_DOWNLOAD_SIZE = 10 * 1024 * 1024; // 10MB
+
+    private static class ImageRecord {
+        String prompt;
+        String modelName;
+        String aspectRatio;
+        String resolution;
+        String imageUrl;
+        long timestamp;
+
+        ImageRecord(String prompt, String modelName, String aspectRatio, String resolution, String imageUrl, long timestamp) {
+            this.prompt = prompt;
+            this.modelName = modelName;
+            this.aspectRatio = aspectRatio;
+            this.resolution = resolution;
+            this.imageUrl = imageUrl;
+            this.timestamp = timestamp;
+        }
+    }
+
     private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
 
     @Override
@@ -121,11 +156,18 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             getCommand("geminihelp").setTabCompleter(this);
         }
 
+        // Ensure library directory exists
+        File libraryDir = new File(getDataFolder(), "library");
+        if (!libraryDir.exists()) {
+            libraryDir.mkdirs();
+        }
+
         getLogger().info("========================================");
-        getLogger().info("GeminiNPC Plugin v1.9.0 Enabled!");
+        getLogger().info("GeminiNPC Plugin v2.0.0 Enabled!");
         getLogger().info("Default Model: " + defaultModelName);
         getLogger().info("Default Image Model: " + defaultImageModel);
         getLogger().info("Image Hosting: " + imageHosting);
+        getLogger().info("Library Max: " + maxLibrarySize + " images/player");
         getLogger().info("Available Models: Flash, Flash Thinking, Pro");
         getLogger().info("Image Models: Nanobanana, Nanobanana Pro");
         getLogger().info("========================================");
@@ -133,6 +175,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
     @Override
     public void onDisable() {
+        // Save all loaded libraries before shutdown
+        for (Map.Entry<UUID, List<ImageRecord>> entry : playerImageLibrary.entrySet()) {
+            saveLibrary(entry.getKey(), entry.getValue());
+        }
+        playerImageLibrary.clear();
         conversationHistories.clear();
         playerSessionMode.clear();
         playerModels.clear();
@@ -160,6 +207,9 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         defaultImageModel = config.getString("image.default-model", MODEL_NANOBANANA);
         defaultAspectRatio = config.getString("image.aspect-ratio", "1:1");
         defaultResolution = config.getString("image.default-resolution", RESOLUTION_1K);
+
+        // Library settings
+        maxLibrarySize = config.getInt("library.max-history", 50);
 
         // Validate aspect ratio
         if (!VALID_ASPECT_RATIOS.contains(defaultAspectRatio)) {
@@ -364,6 +414,14 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         playerAspectRatios.putIfAbsent(playerId, defaultAspectRatio);
         playerResolutions.putIfAbsent(playerId, defaultResolution);
 
+        // Lazy-load library from disk
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            List<ImageRecord> library = loadLibrary(playerId);
+            if (library != null && !library.isEmpty()) {
+                playerImageLibrary.put(playerId, library);
+            }
+        });
+
         Bukkit.getScheduler().runTaskLater(this, () -> {
             showWelcomeMessage(player);
         }, 40L);
@@ -384,6 +442,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         UUID playerId = event.getPlayer().getUniqueId();
+        // Save library on quit, then remove from memory
+        List<ImageRecord> library = playerImageLibrary.remove(playerId);
+        if (library != null && !library.isEmpty()) {
+            Bukkit.getScheduler().runTaskAsynchronously(this, () -> saveLibrary(playerId, library));
+        }
         conversationHistories.remove(playerId);
         playerSessionMode.remove(playerId);
         playerModels.remove(playerId);
@@ -408,13 +471,13 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         List<String> suggestions = new ArrayList<>();
 
         if (mode == SessionMode.MAIN_MENU) {
-            List<String> cmds = Arrays.asList("1", "2", "3", "4", "5", "6", "chat", "search", "image", "model", "help", "status", "exit");
+            List<String> cmds = Arrays.asList("1", "2", "3", "4", "5", "6", "7", "chat", "search", "image", "model", "help", "status", "library", "exit");
             for (String cmd : cmds) {
                 if (cmd.startsWith(input)) suggestions.add("/" + cmd);
             }
         } else if (mode == SessionMode.IMAGE) {
             // Image mode commands
-            List<String> cmds = Arrays.asList("settings", "model", "ratio", "resolution", "exit");
+            List<String> cmds = Arrays.asList("settings", "model", "ratio", "resolution", "library", "exit");
             if (input.isEmpty()) {
                 for (String cmd : cmds) suggestions.add("/" + cmd);
             } else if (input.startsWith("model ")) {
@@ -518,8 +581,13 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 case "ステータス":
                     showStatus(player);
                     return;
+                case "7":
+                case "library":
+                case "ライブラリ":
+                    showLibrary(player, 1);
+                    return;
                 default:
-                    player.sendMessage(ChatColor.RED + "無効な選択です。1〜6の数字を入力してください。");
+                    player.sendMessage(ChatColor.RED + "無効な選択です。1〜7の数字を入力してください。");
                     return;
             }
         }
@@ -607,6 +675,12 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 return;
             }
 
+            // Handle library access from image mode
+            if (input.equals("library") || input.equals("ライブラリ")) {
+                showLibrary(player, 1);
+                return;
+            }
+
             if (input.isEmpty()) {
                 player.sendMessage(ChatColor.GRAY + "/<画像の説明> で画像を生成できます。/settings で設定表示。/exit でメニューに戻ります。");
                 return;
@@ -625,8 +699,32 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             final String capturedModel = getPlayerImageModel(playerId);
             final String capturedRatio = getPlayerAspectRatio(playerId);
             final String capturedRes = getPlayerResolution(playerId);
+
+            // Check for Image-to-Image: URL detection
+            Matcher urlMatcher = URL_PATTERN.matcher(input);
+            if (urlMatcher.find()) {
+                final String sourceUrl = urlMatcher.group(1);
+                final String i2iPrompt = input.replace(sourceUrl, "").trim();
+
+                if (i2iPrompt.isEmpty()) {
+                    player.sendMessage(ChatColor.RED + "画像URLの後にプロンプトを入力してください。");
+                    player.sendMessage(ChatColor.GRAY + "例: /" + sourceUrl + " アニメ風にして");
+                    imageGenerationCooldown.remove(playerId); // Reset cooldown
+                    return;
+                }
+
+                player.sendMessage(ChatColor.LIGHT_PURPLE + "[Image-to-Image] " + ChatColor.WHITE + i2iPrompt);
+                player.sendMessage(ChatColor.DARK_GRAY + "  モデル: " + getImageModelDisplayName(capturedModel) + " | 比率: " + capturedRatio + " | 解像度: " + capturedRes);
+                player.sendMessage(ChatColor.LIGHT_PURPLE + "✦ " + ChatColor.GRAY + "元画像をダウンロード中...");
+
+                Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+                    processI2IGeneration(player, i2iPrompt, sourceUrl, capturedModel, capturedRatio, capturedRes);
+                });
+                return;
+            }
+
             player.sendMessage(ChatColor.LIGHT_PURPLE + "[画像生成] " + ChatColor.WHITE + input);
-            player.sendMessage(ChatColor.DARK_GRAY + "  比率: " + capturedRatio + " | 解像度: " + capturedRes);
+            player.sendMessage(ChatColor.DARK_GRAY + "  モデル: " + getImageModelDisplayName(capturedModel) + " | 比率: " + capturedRatio + " | 解像度: " + capturedRes);
             if (MODEL_NANOBANANA_PRO.equals(capturedModel)) {
                 if (RESOLUTION_4K.equals(capturedRes)) {
                     player.sendMessage(ChatColor.LIGHT_PURPLE + "✦ " + ChatColor.GRAY + "4K高品質画像を生成中... (時間がかかります)");
@@ -740,6 +838,39 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                     case "6":
                         showStatus(player);
                         return true;
+                    case "library":
+                    case "ライブラリ":
+                    case "7":
+                        if (args.length > 1) {
+                            String libSub = args[1].toLowerCase();
+                            if (libSub.equals("page") && args.length > 2) {
+                                try {
+                                    int page = Integer.parseInt(args[2]);
+                                    showLibrary(player, page);
+                                } catch (NumberFormatException e) {
+                                    showLibrary(player, 1);
+                                }
+                            } else if (libSub.equals("view") && args.length > 2) {
+                                try {
+                                    int idx = Integer.parseInt(args[2]);
+                                    handleLibraryView(player, idx);
+                                } catch (NumberFormatException e) {
+                                    player.sendMessage(ChatColor.RED + "無効なインデックスです。");
+                                }
+                            } else if (libSub.equals("i2i") && args.length > 2) {
+                                try {
+                                    int idx = Integer.parseInt(args[2]);
+                                    handleLibraryI2I(player, idx);
+                                } catch (NumberFormatException e) {
+                                    player.sendMessage(ChatColor.RED + "無効なインデックスです。");
+                                }
+                            } else {
+                                showLibrary(player, 1);
+                            }
+                        } else {
+                            showLibrary(player, 1);
+                        }
+                        return true;
                     case "imagemodel":
                         if (args.length > 1) {
                             handleImageModelChange(player, args[1]);
@@ -766,7 +897,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                         return true;
                     default:
                         player.sendMessage(ChatColor.RED + "不明なサブコマンド: " + subCommand);
-                        player.sendMessage(ChatColor.YELLOW + "使用方法: /gemini [chat|search|image|model|help|status|menu|exit]");
+                        player.sendMessage(ChatColor.YELLOW + "使用方法: /gemini [chat|search|image|model|help|status|library|menu|exit]");
                         return true;
                 }
             }
@@ -902,7 +1033,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             if (args.length == 1) {
                 // First argument - main subcommands
                 List<String> subCommands = Arrays.asList(
-                    "chat", "search", "image", "model", "help", "status", "menu", "exit", "clear", "imagemodel"
+                    "chat", "search", "image", "model", "help", "status", "library", "menu", "exit", "clear", "imagemodel"
                 );
                 String input = args[0].toLowerCase();
                 completions = subCommands.stream()
@@ -1034,6 +1165,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         sendClickableLine(player,
             text("    ", net.md_5.bungee.api.ChatColor.WHITE),
             createClickableButton("[6] ステータス", "/6", "クリックでステータスを表示", net.md_5.bungee.api.ChatColor.GRAY));
+        sendClickableLine(player,
+            text("    ", net.md_5.bungee.api.ChatColor.WHITE),
+            createClickableButton("[7] ライブラリ", "/7", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
+            text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+            text("過去の画像", net.md_5.bungee.api.ChatColor.GRAY));
         player.sendMessage("");
         player.sendMessage(ChatColor.DARK_GRAY + "  ─────────────────────────────────");
         sendClickableLine(player,
@@ -1105,6 +1241,10 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.LIGHT_PURPLE + "    /<画像の説明>" + ChatColor.GRAY + " → 画像を生成");
         player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "/夕焼けの海");
         player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "/かわいい猫がMinecraftで遊んでいる");
+        player.sendMessage("");
+        player.sendMessage(ChatColor.WHITE + "  画像から画像を生成" + ChatColor.GRAY + " (Image-to-Image):");
+        player.sendMessage(ChatColor.AQUA + "    /https://画像URL プロンプト" + ChatColor.GRAY + " → 画像を変換");
+        player.sendMessage(ChatColor.GRAY + "      例: " + ChatColor.WHITE + "/https://example.com/img.png アニメ風にして");
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  設定変更" + ChatColor.GRAY + " (クリックで操作):");
         sendClickableLine(player,
@@ -1416,6 +1556,9 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
     private void sendImageLink(Player player, String imageUrl, String prompt, String modelName, String aspectRatio, String resolution) {
         String displayModel = getImageModelDisplayName(modelName);
+
+        // Save to library
+        addToLibrary(player.getUniqueId(), prompt, modelName, aspectRatio, resolution, imageUrl);
 
         Bukkit.getScheduler().runTask(this, () -> {
             if (!player.isOnline()) return;
@@ -2062,6 +2205,272 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
     }
 
+    private void processI2IGeneration(Player player, String prompt, String sourceUrl, String imageModel, String aspectRatio, String resolution) {
+        try {
+            // Step 1: Download source image
+            byte[] sourceImage;
+            try {
+                sourceImage = downloadImage(sourceUrl);
+            } catch (Exception e) {
+                Bukkit.getScheduler().runTask(this, () -> {
+                    if (!player.isOnline()) return;
+                    player.sendMessage(ChatColor.RED + "[Image-to-Image] 元画像のダウンロードに失敗しました: " + e.getMessage());
+                    player.sendMessage(ChatColor.GRAY + "URLが正しいか確認してください。対応形式: JPEG, PNG, WebP");
+                });
+                return;
+            }
+
+            String mimeType = detectMimeType(sourceUrl);
+
+            Bukkit.getScheduler().runTask(this, () -> {
+                if (!player.isOnline()) return;
+                player.sendMessage(ChatColor.LIGHT_PURPLE + "✦ " + ChatColor.GRAY + "画像を変換中...");
+            });
+
+            // Step 2: Call Gemini API with source image
+            byte[] imageData = callGeminiImageAPI(prompt, imageModel, aspectRatio, resolution, sourceImage, mimeType);
+
+            if (imageData == null || imageData.length == 0) {
+                Bukkit.getScheduler().runTask(this, () -> {
+                    if (!player.isOnline()) return;
+                    player.sendMessage(ChatColor.RED + "[Image-to-Image] 画像の変換に失敗しました。");
+                    player.sendMessage(ChatColor.GRAY + "別のプロンプトで試してみてください。");
+                });
+                return;
+            }
+
+            // Step 3: Upload
+            Bukkit.getScheduler().runTask(this, () -> {
+                if (!player.isOnline()) return;
+                player.sendMessage(ChatColor.LIGHT_PURPLE + "✦ " + ChatColor.GRAY + "画像をアップロード中...");
+            });
+
+            String imageUrl = uploadImage(imageData);
+
+            if (imageUrl == null || imageUrl.isEmpty()) {
+                Bukkit.getScheduler().runTask(this, () -> {
+                    if (!player.isOnline()) return;
+                    player.sendMessage(ChatColor.RED + "[Image-to-Image] 画像のアップロードに失敗しました。");
+                });
+                return;
+            }
+
+            if (!imageUrl.startsWith("https://") && !imageUrl.startsWith("http://")) {
+                getLogger().warning("Invalid I2I image URL returned: " + imageUrl);
+                Bukkit.getScheduler().runTask(this, () -> {
+                    if (!player.isOnline()) return;
+                    player.sendMessage(ChatColor.RED + "[Image-to-Image] 画像URLが不正です。再度お試しください。");
+                });
+                return;
+            }
+
+            // Step 4: Send link (also saves to library)
+            sendImageLink(player, imageUrl, prompt + " (i2i)", imageModel, aspectRatio, resolution);
+
+        } catch (Exception e) {
+            getLogger().severe("I2I generation error: " + e.getMessage());
+            e.printStackTrace();
+            Bukkit.getScheduler().runTask(this, () -> {
+                if (!player.isOnline()) return;
+                player.sendMessage(ChatColor.RED + "[Image-to-Image] エラーが発生しました: " + e.getMessage());
+            });
+        }
+    }
+
+    // Image-to-Image: Download source image from URL
+    private byte[] downloadImage(String imageUrl) throws Exception {
+        URL url = new URL(imageUrl);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+        conn.setConnectTimeout(15000);
+        conn.setReadTimeout(15000);
+        conn.setInstanceFollowRedirects(true);
+
+        int responseCode = conn.getResponseCode();
+        if (responseCode != HttpURLConnection.HTTP_OK) {
+            conn.disconnect();
+            throw new Exception("HTTP " + responseCode);
+        }
+
+        // Check content length
+        long contentLength = conn.getContentLengthLong();
+        if (contentLength > MAX_IMAGE_DOWNLOAD_SIZE) {
+            conn.disconnect();
+            throw new Exception("画像が大きすぎます (最大10MB)");
+        }
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (java.io.InputStream is = conn.getInputStream()) {
+            byte[] buffer = new byte[8192];
+            int read;
+            long totalRead = 0;
+            while ((read = is.read(buffer)) != -1) {
+                totalRead += read;
+                if (totalRead > MAX_IMAGE_DOWNLOAD_SIZE) {
+                    throw new Exception("画像が大きすぎます (最大10MB)");
+                }
+                baos.write(buffer, 0, read);
+            }
+        } finally {
+            conn.disconnect();
+        }
+        return baos.toByteArray();
+    }
+
+    private String detectMimeType(String url) {
+        String lower = url.toLowerCase();
+        if (lower.contains(".png")) return "image/png";
+        if (lower.contains(".jpg") || lower.contains(".jpeg")) return "image/jpeg";
+        if (lower.contains(".webp")) return "image/webp";
+        // Default to png
+        return "image/png";
+    }
+
+    // Image-to-Image: callGeminiImageAPI with source image
+    private byte[] callGeminiImageAPI(String prompt, String modelName, String aspectRatio, String resolution, byte[] sourceImage, String sourceMimeType) {
+        HttpURLConnection connection = null;
+        try {
+            String urlString = String.format(GEMINI_API_URL, modelName, apiKey);
+            URL url = new URL(urlString);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setDoOutput(true);
+            connection.setConnectTimeout(30000);
+            connection.setReadTimeout(180000);
+
+            JsonObject requestBody = new JsonObject();
+
+            // Contents with text + inline_data
+            JsonArray contents = new JsonArray();
+            JsonObject userPart = new JsonObject();
+            userPart.addProperty("role", "user");
+            JsonArray userParts = new JsonArray();
+
+            // Text part
+            JsonObject textPart = new JsonObject();
+            textPart.addProperty("text", prompt);
+            userParts.add(textPart);
+
+            // Inline image data part
+            JsonObject imagePart = new JsonObject();
+            JsonObject inlineData = new JsonObject();
+            inlineData.addProperty("mime_type", sourceMimeType);
+            inlineData.addProperty("data", Base64.getEncoder().encodeToString(sourceImage));
+            imagePart.add("inline_data", inlineData);
+            userParts.add(imagePart);
+
+            userPart.add("parts", userParts);
+            contents.add(userPart);
+            requestBody.add("contents", contents);
+
+            // Generation config
+            JsonObject generationConfig = new JsonObject();
+            JsonArray responseModalities = new JsonArray();
+            responseModalities.add("TEXT");
+            responseModalities.add("IMAGE");
+            generationConfig.add("responseModalities", responseModalities);
+
+            JsonObject imageConfig = new JsonObject();
+            imageConfig.addProperty("aspectRatio", aspectRatio);
+            if (MODEL_NANOBANANA_PRO.equals(modelName)) {
+                imageConfig.addProperty("imageSize", resolution);
+            }
+            generationConfig.add("imageConfig", imageConfig);
+            requestBody.add("generationConfig", generationConfig);
+
+            // Safety settings
+            JsonArray safetySettings = new JsonArray();
+            String[] categories = {
+                "HARM_CATEGORY_HARASSMENT",
+                "HARM_CATEGORY_HATE_SPEECH",
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "HARM_CATEGORY_DANGEROUS_CONTENT"
+            };
+            for (String category : categories) {
+                JsonObject setting = new JsonObject();
+                setting.addProperty("category", category);
+                setting.addProperty("threshold", "BLOCK_MEDIUM_AND_ABOVE");
+                safetySettings.add(setting);
+            }
+            requestBody.add("safetySettings", safetySettings);
+
+            String jsonBody = new Gson().toJson(requestBody);
+
+            try (OutputStream os = connection.getOutputStream()) {
+                byte[] input = jsonBody.getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
+            }
+
+            int responseCode = connection.getResponseCode();
+
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                StringBuilder response = new StringBuilder();
+                try (BufferedReader br = new BufferedReader(
+                        new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                    String responseLine;
+                    while ((responseLine = br.readLine()) != null) {
+                        response.append(responseLine.trim());
+                    }
+                }
+
+                JsonObject jsonResponse = JsonParser.parseString(response.toString()).getAsJsonObject();
+
+                if (jsonResponse.has("candidates")) {
+                    JsonArray candidates = jsonResponse.getAsJsonArray("candidates");
+                    if (candidates.size() > 0) {
+                        JsonObject candidate = candidates.get(0).getAsJsonObject();
+                        if (candidate.has("content")) {
+                            JsonObject content = candidate.getAsJsonObject("content");
+                            if (content.has("parts")) {
+                                JsonArray parts = content.getAsJsonArray("parts");
+                                for (int i = 0; i < parts.size(); i++) {
+                                    JsonObject part = parts.get(i).getAsJsonObject();
+                                    if (part.has("inlineData") || part.has("inline_data")) {
+                                        JsonObject inData = part.has("inlineData")
+                                            ? part.getAsJsonObject("inlineData")
+                                            : part.getAsJsonObject("inline_data");
+                                        if (inData.has("data")) {
+                                            String base64Data = inData.get("data").getAsString();
+                                            return Base64.getDecoder().decode(base64Data);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                getLogger().warning("No image data in I2I API response");
+            } else {
+                StringBuilder errorResponse = new StringBuilder();
+                java.io.InputStream errorStream = connection.getErrorStream();
+                if (errorStream != null) {
+                    try (BufferedReader br = new BufferedReader(
+                            new InputStreamReader(errorStream, StandardCharsets.UTF_8))) {
+                        String responseLine;
+                        while ((responseLine = br.readLine()) != null) {
+                            errorResponse.append(responseLine.trim());
+                        }
+                    }
+                }
+                getLogger().severe("Gemini I2I API Error: " + responseCode + " - " + errorResponse.toString());
+            }
+
+        } catch (Exception e) {
+            getLogger().severe("Error calling Gemini I2I API: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+
+        return null;
+    }
+
+    // Text-to-Image: original callGeminiImageAPI
     private byte[] callGeminiImageAPI(String prompt, String modelName, String aspectRatio, String resolution) {
         HttpURLConnection connection = null;
         try {
@@ -2394,6 +2803,216 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         os.write(("Content-Type: " + mimeType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
         os.write(data);
         os.write("\r\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    // ==================== Library Persistence ====================
+
+    private void addToLibrary(UUID playerId, String prompt, String modelName, String aspectRatio, String resolution, String imageUrl) {
+        List<ImageRecord> library = playerImageLibrary.computeIfAbsent(playerId, k -> Collections.synchronizedList(new ArrayList<>()));
+        ImageRecord record = new ImageRecord(prompt, modelName, aspectRatio, resolution, imageUrl, System.currentTimeMillis());
+        library.add(record);
+        // Trim to max size (remove oldest)
+        while (library.size() > maxLibrarySize) {
+            library.remove(0);
+        }
+        // Save async
+        final List<ImageRecord> snapshot = new ArrayList<>(library);
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> saveLibrary(playerId, snapshot));
+    }
+
+    private void saveLibrary(UUID playerId, List<ImageRecord> library) {
+        try {
+            File libraryDir = new File(getDataFolder(), "library");
+            if (!libraryDir.exists()) libraryDir.mkdirs();
+            File file = new File(libraryDir, playerId.toString() + ".json");
+            String json = new Gson().toJson(library);
+            try (FileWriter writer = new FileWriter(file)) {
+                writer.write(json);
+            }
+        } catch (Exception e) {
+            getLogger().warning("Failed to save library for " + playerId + ": " + e.getMessage());
+        }
+    }
+
+    private List<ImageRecord> loadLibrary(UUID playerId) {
+        try {
+            File file = new File(new File(getDataFolder(), "library"), playerId.toString() + ".json");
+            if (!file.exists()) return null;
+            try (FileReader reader = new FileReader(file)) {
+                Type listType = new TypeToken<ArrayList<ImageRecord>>(){}.getType();
+                List<ImageRecord> library = new Gson().fromJson(reader, listType);
+                return library != null ? Collections.synchronizedList(new ArrayList<>(library)) : null;
+            }
+        } catch (Exception e) {
+            getLogger().warning("Failed to load library for " + playerId + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private String getRelativeTimeString(long timestamp) {
+        long diff = System.currentTimeMillis() - timestamp;
+        long seconds = diff / 1000;
+        if (seconds < 60) return seconds + "秒前";
+        long minutes = seconds / 60;
+        if (minutes < 60) return minutes + "分前";
+        long hours = minutes / 60;
+        if (hours < 24) return hours + "時間前";
+        long days = hours / 24;
+        if (days < 30) return days + "日前";
+        long months = days / 30;
+        return months + "ヶ月前";
+    }
+
+    // ==================== Library UI ====================
+
+    private void showLibrary(Player player, int page) {
+        UUID playerId = player.getUniqueId();
+        List<ImageRecord> library = playerImageLibrary.get(playerId);
+        int totalItems = (library != null) ? library.size() : 0;
+        int itemsPerPage = 5;
+        int totalPages = Math.max(1, (int) Math.ceil((double) totalItems / itemsPerPage));
+
+        if (page < 1) page = 1;
+        if (page > totalPages) page = totalPages;
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GOLD + "╔═══════════════════════════════════════════════╗");
+        player.sendMessage(ChatColor.GOLD + "║  " + ChatColor.WHITE + "画像ライブラリ (" + totalItems + "枚)" +
+            ChatColor.GRAY + "  ページ " + page + "/" + totalPages + ChatColor.GOLD + "           ║");
+        player.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════════════╝");
+        player.sendMessage("");
+
+        if (totalItems == 0) {
+            player.sendMessage(ChatColor.GRAY + "  まだ画像がありません。");
+            player.sendMessage(ChatColor.GRAY + "  画像生成モードで画像を生成すると自動で保存されます。");
+        } else {
+            int startIndex = totalItems - 1 - (page - 1) * itemsPerPage; // newest first
+            int endIndex = Math.max(startIndex - itemsPerPage + 1, 0);
+
+            int displayNum = (page - 1) * itemsPerPage + 1;
+            for (int i = startIndex; i >= endIndex; i--) {
+                ImageRecord record = library.get(i);
+                String shortPrompt = record.prompt.length() > 25 ? record.prompt.substring(0, 25) + "..." : record.prompt;
+                String shortModel = getImageModelShortName(record.modelName);
+                String timeAgo = getRelativeTimeString(record.timestamp);
+
+                // Line 1: Number + [表示] + prompt
+                sendClickableLine(player,
+                    text("  " + displayNum + ". ", net.md_5.bungee.api.ChatColor.WHITE),
+                    createClickableButton("[表示]", "/gemini library view " + i, "クリックでブラウザで画像を表示", net.md_5.bungee.api.ChatColor.GOLD),
+                    text(" ", net.md_5.bungee.api.ChatColor.GRAY),
+                    createClickableButton("[変換]", "/gemini library i2i " + i, "クリックでこの画像をImage-to-Image変換", net.md_5.bungee.api.ChatColor.AQUA),
+                    text(" " + shortPrompt, net.md_5.bungee.api.ChatColor.WHITE));
+                player.sendMessage(ChatColor.GRAY + "     " + shortModel + " | " + record.aspectRatio + " | " + record.resolution + " | " + timeAgo);
+                displayNum++;
+            }
+        }
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.DARK_GRAY + "  ─────────────────────────────────");
+
+        // Navigation buttons
+        final int currentPage = page;
+        if (totalPages > 1) {
+            TextComponent navLine = new TextComponent("  ");
+            if (currentPage > 1) {
+                navLine.addExtra(createClickableButton("[← 前]", "/gemini library page " + (currentPage - 1), "前のページ", net.md_5.bungee.api.ChatColor.YELLOW));
+                navLine.addExtra(new TextComponent("  "));
+            }
+            if (currentPage < totalPages) {
+                navLine.addExtra(createClickableButton("[次 →]", "/gemini library page " + (currentPage + 1), "次のページ", net.md_5.bungee.api.ChatColor.YELLOW));
+                navLine.addExtra(new TextComponent("  "));
+            }
+            navLine.addExtra(createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+            player.spigot().sendMessage(navLine);
+        } else {
+            sendClickableLine(player,
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+        }
+        player.sendMessage("");
+    }
+
+    private String getImageModelShortName(String modelName) {
+        if (MODEL_NANOBANANA_PRO.equals(modelName) || (modelName != null && modelName.contains("pro-image"))) {
+            return "Nanobanana Pro";
+        }
+        return "Nanobanana";
+    }
+
+    private void handleLibraryView(Player player, int index) {
+        UUID playerId = player.getUniqueId();
+        List<ImageRecord> library = playerImageLibrary.get(playerId);
+        if (library == null || index < 0 || index >= library.size()) {
+            player.sendMessage(ChatColor.RED + "画像が見つかりません。");
+            return;
+        }
+        ImageRecord record = library.get(index);
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GOLD + "╔═══════════════════════════════════════════════╗");
+        player.sendMessage(ChatColor.GOLD + "║  " + ChatColor.WHITE + "画像詳細" + ChatColor.GOLD + "                                   ║");
+        player.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════════════╝");
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GRAY + "  プロンプト: " + ChatColor.WHITE + record.prompt);
+        player.sendMessage(ChatColor.GRAY + "  モデル: " + ChatColor.LIGHT_PURPLE + getImageModelDisplayName(record.modelName)
+            + ChatColor.GRAY + " | 比率: " + ChatColor.WHITE + record.aspectRatio
+            + ChatColor.GRAY + " | 解像度: " + ChatColor.WHITE + record.resolution);
+        player.sendMessage(ChatColor.GRAY + "  生成: " + ChatColor.WHITE + getRelativeTimeString(record.timestamp));
+        player.sendMessage("");
+
+        // Clickable link
+        TextComponent prefix = new TextComponent("  ");
+        TextComponent linkText = new TextComponent("[画像を表示する (クリック)]");
+        linkText.setColor(net.md_5.bungee.api.ChatColor.GOLD);
+        linkText.setBold(true);
+        linkText.setUnderlined(true);
+        linkText.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, record.imageUrl));
+        linkText.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+            new ComponentBuilder("クリックしてブラウザで画像を表示")
+                .color(net.md_5.bungee.api.ChatColor.YELLOW).create()));
+        prefix.addExtra(linkText);
+        player.spigot().sendMessage(prefix);
+
+        player.sendMessage(ChatColor.DARK_GRAY + "  URL: " + ChatColor.GRAY + record.imageUrl);
+        player.sendMessage("");
+        player.sendMessage(ChatColor.DARK_GRAY + "  ─────────────────────────────────");
+        sendClickableLine(player,
+            text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+            createClickableButton("[変換]", "/gemini library i2i " + index, "この画像をImage-to-Image変換", net.md_5.bungee.api.ChatColor.AQUA),
+            text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+            createClickableButton("[ライブラリに戻る]", "/gemini library", "クリックでライブラリに戻る", net.md_5.bungee.api.ChatColor.YELLOW),
+            text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+            createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+        player.sendMessage("");
+    }
+
+    private void handleLibraryI2I(Player player, int index) {
+        UUID playerId = player.getUniqueId();
+        List<ImageRecord> library = playerImageLibrary.get(playerId);
+        if (library == null || index < 0 || index >= library.size()) {
+            player.sendMessage(ChatColor.RED + "画像が見つかりません。");
+            return;
+        }
+        ImageRecord record = library.get(index);
+
+        // Switch to IMAGE mode and suggest the i2i command
+        playerSessionMode.put(playerId, SessionMode.IMAGE);
+        player.sendMessage("");
+        player.sendMessage(ChatColor.AQUA + "✦ " + ChatColor.WHITE + "Image-to-Imageモードに切り替えました。");
+        player.sendMessage(ChatColor.GRAY + "  元画像: " + ChatColor.WHITE + record.prompt);
+        player.sendMessage("");
+        player.sendMessage(ChatColor.WHITE + "  プロンプトを入力してください:");
+        player.sendMessage(ChatColor.GRAY + "  例: " + ChatColor.WHITE + "/" + record.imageUrl + " アニメ風にして");
+        player.sendMessage("");
+
+        // Use suggest command to pre-fill the URL
+        TextComponent line = new TextComponent("  ");
+        line.addExtra(createSuggestButton("[プロンプトを入力]", "/" + record.imageUrl + " ", "URLが入力されます。続けてプロンプトを入力してください", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, true));
+        line.addExtra(new TextComponent("  "));
+        line.addExtra(createClickableButton("[ライブラリに戻る]", "/gemini library", "クリックでライブラリに戻る", net.md_5.bungee.api.ChatColor.YELLOW));
+        player.spigot().sendMessage(line);
+        player.sendMessage("");
     }
 
     // ==================== Clickable UI Helpers ====================

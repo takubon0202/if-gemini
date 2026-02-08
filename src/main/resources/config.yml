@@ -70,3 +70,8 @@ image:
   #   - 4K (4096px: 超高画質 ※コストが約2倍になります)
   # ※Nanobanana (Flash) は1Kのみ対応
   default-resolution: "1K"
+
+# ライブラリ設定
+library:
+  # 1プレイヤーあたりの最大保存数
+  max-history: 50
