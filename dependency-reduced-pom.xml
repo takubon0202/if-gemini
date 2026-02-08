@@ -4,7 +4,7 @@
   <groupId>com.gemininpc</groupId>
   <artifactId>if-Gemini</artifactId>
   <name>GeminiNPC</name>
-  <version>2.1.2</version>
+  <version>2.1.3</version>
   <description>Minecraft NPC AI Chat Plugin using Google Gemini</description>
   <build>
     <defaultGoal>clean package</defaultGoal>
