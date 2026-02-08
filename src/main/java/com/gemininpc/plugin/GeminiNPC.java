@@ -1521,13 +1521,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             player.sendMessage("");
         }
 
-        player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
-        player.sendMessage(ChatColor.GRAY + "  次のリクエストをチャットで入力");
-        player.sendMessage("");
+        sendModeFooter(player);
     }
 
     private String getCommandGenerationSystemPrompt() {
-        return "あなたはMinecraft 1.21+ コマンド生成の専門AIです。\n" +
+        return "あなたはMinecraft Java Edition 1.21.11 コマンド生成の専門AIです。\n" +
                "ユーザーの自然言語リクエストからMinecraftコマンドを生成してください。\n\n" +
                "【必ず以下のフォーマットで回答】\n" +
                "COMMAND: /生成したコマンド\n" +
@@ -1541,19 +1539,35 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "- 'saikyo no ken' → '最強の剣'\n" +
                "- 'sora wo toberu kutsu' → '空を飛べる靴'\n" +
                "- 'daiya no yoroi zenbu' → 'ダイヤの鎧全部'\n\n" +
-               "【Minecraft 1.21+ コマンド構文 (Component形式)】\n\n" +
+               "【★★★ 絶対に守るルール: snake_case ★★★】\n" +
+               "Minecraftの全てのIDはsnake_case（アンダースコア区切り）です。\n" +
+               "絶対に単語を繋げないでください。\n" +
+               "正: diamond_sword, fire_aspect, bane_of_arthropods, sweeping_edge\n" +
+               "誤: diamondsword, fireaspect, baneofarthropods, sweepingedge\n\n" +
+               "【Minecraft 1.21.11 コマンド構文 (Component形式)】\n\n" +
                "=== /give コマンド ===\n" +
                "/give <対象> <アイテムID>[コンポーネント] [個数]\n" +
                "コンポーネント形式: [key=value,key=value]\n\n" +
-               "エンチャント: [enchantments={\"enchant_name\":level}]\n" +
-               "例: /give @p netherite_sword[enchantments={\"sharpness\":255,\"fire_aspect\":2,\"knockback\":2,\"looting\":3,\"sweeping_edge\":3,\"unbreaking\":3,\"mending\":1}]\n\n" +
-               "カスタム名: [custom_name='\"名前\"']\n" +
-               "例: /give @p diamond_sword[custom_name='\"伝説の剣\"',enchantments={\"sharpness\":255}]\n\n" +
-               "ポーション: [potion_contents={custom_effects:[{id:\"effect\",amplifier:N,duration:T}]}]\n" +
-               "例: /give @p potion[potion_contents={custom_effects:[{id:\"strength\",amplifier:255,duration:999999}]}]\n\n" +
-               "耐久無限: [unbreakable={}]\n" +
-               "染色: [dyed_color={rgb:16711680}]\n\n" +
-               "=== 主要エンチャント一覧 ===\n" +
+               "--- エンチャント ---\n" +
+               "形式: enchantments={\"エンチャントID\":レベル}\n" +
+               "正しい例:\n" +
+               "/give @p netherite_sword[enchantments={\"sharpness\":255,\"fire_aspect\":2,\"knockback\":2,\"looting\":3,\"sweeping_edge\":3,\"unbreaking\":3,\"mending\":1}]\n\n" +
+               "--- カスタム名 (JSON text component必須) ---\n" +
+               "形式: custom_name='{\"text\":\"名前\",\"italic\":false}'\n" +
+               "正しい例:\n" +
+               "/give @p diamond_sword[custom_name='{\"text\":\"伝説の剣\",\"italic\":false}',enchantments={\"sharpness\":255}]\n" +
+               "色付き: custom_name='{\"text\":\"炎の剣\",\"color\":\"red\",\"italic\":false}'\n\n" +
+               "--- ポーション ---\n" +
+               "形式: potion_contents={custom_effects:[{id:\"エフェクトID\",amplifier:N,duration:T}]}\n" +
+               "正しい例:\n" +
+               "/give @p potion[potion_contents={custom_effects:[{id:\"strength\",amplifier:255,duration:999999}]}]\n\n" +
+               "--- その他コンポーネント ---\n" +
+               "耐久無限: unbreakable={}\n" +
+               "染色: dyed_color={rgb:16711680}\n" +
+               "説明文: lore=['{\"text\":\"説明文\"}','{\"text\":\"2行目\"}']\n\n" +
+               "--- 最強装備の完全な例 ---\n" +
+               "/give @p diamond_sword[custom_name='{\"text\":\"最強の剣\",\"italic\":false}',unbreakable={},enchantments={\"sharpness\":255,\"smite\":255,\"bane_of_arthropods\":255,\"fire_aspect\":255,\"knockback\":255,\"looting\":255,\"sweeping_edge\":255,\"unbreaking\":255,\"mending\":1}] 1\n\n" +
+               "=== エンチャントID一覧 (全てsnake_case) ===\n" +
                "剣: sharpness, smite, bane_of_arthropods, fire_aspect, knockback, looting, sweeping_edge\n" +
                "弓: power, punch, flame, infinity\n" +
                "防具: protection, fire_protection, blast_protection, projectile_protection, thorns\n" +
@@ -1562,6 +1576,12 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "トライデント: riptide, loyalty, channeling, impaling\n" +
                "クロスボウ: quick_charge, multishot, piercing\n" +
                "その他: aqua_affinity, respiration, wind_burst, density, breach\n\n" +
+               "=== アイテムID例 (全てsnake_case) ===\n" +
+               "diamond_sword, netherite_sword, iron_sword, diamond_pickaxe, netherite_pickaxe\n" +
+               "diamond_helmet, diamond_chestplate, diamond_leggings, diamond_boots\n" +
+               "netherite_helmet, netherite_chestplate, netherite_leggings, netherite_boots\n" +
+               "enchanted_golden_apple, ender_pearl, golden_apple, splash_potion, lingering_potion\n" +
+               "elytra, shield, bow, crossbow, trident, totem_of_undying, name_tag\n\n" +
                "=== /summon コマンド ===\n" +
                "/summon <エンティティID> [座標] [NBTデータ]\n" +
                "例: /summon zombie ~ ~ ~ {IsBaby:1b,ArmorItems:[{},{},{},{id:\"diamond_helmet\",count:1}]}\n" +
@@ -1601,7 +1621,8 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "引数: @e[type=zombie,distance=..10,limit=1,sort=nearest]\n\n" +
                "【重要なルール】\n" +
                "- コマンドは必ず / で始める\n" +
-               "- Minecraft 1.21+ のComponent形式を使用（[]でコンポーネント指定）\n" +
+               "- 全てのIDはsnake_case（例: diamond_sword, fire_aspect）絶対に単語を繋げない\n" +
+               "- custom_nameは必ずJSON text component形式: '{\"text\":\"名前\",\"italic\":false}'\n" +
                "- 「最強」と言われたらエンチャントレベル255で全関連エンチャント付与\n" +
                "- 対象が指定されなければ @p を使用\n" +
                "- 座標が指定されなければ ~ ~ ~ を使用\n" +
@@ -2392,8 +2413,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 player.sendMessage("");
                 player.sendMessage(ChatColor.AQUA + "[" + npcName + "] " + ChatColor.WHITE + finalResponse);
                 player.sendMessage("");
-                player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
-                player.sendMessage("");
+                sendModeFooter(player);
             });
         } else {
             Bukkit.getScheduler().runTask(this, () -> {
@@ -2455,8 +2475,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             }
 
             player.sendMessage("");
-            player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
-            player.sendMessage("");
+            sendModeFooter(player);
         });
     }
 
@@ -3437,15 +3456,59 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         player.sendMessage(ChatColor.GRAY + "  元画像: " + ChatColor.WHITE + record.prompt);
         player.sendMessage("");
         player.sendMessage(ChatColor.WHITE + "  プロンプトを入力してください:");
-        player.sendMessage(ChatColor.GRAY + "  例: " + ChatColor.WHITE + "/" + record.imageUrl + " アニメ風にして");
+        player.sendMessage(ChatColor.GRAY + "  例: " + ChatColor.WHITE + record.imageUrl + " アニメ風にして");
         player.sendMessage("");
 
         // Use suggest command to pre-fill the URL
         TextComponent line = new TextComponent("  ");
-        line.addExtra(createSuggestButton("[プロンプトを入力]", "/" + record.imageUrl + " ", "URLが入力されます。続けてプロンプトを入力してください", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, true));
+        line.addExtra(createSuggestButton("[プロンプトを入力]", record.imageUrl + " ", "URLが入力されます。続けてプロンプトを入力してください", net.md_5.bungee.api.ChatColor.LIGHT_PURPLE, true));
         line.addExtra(new TextComponent("  "));
         line.addExtra(createClickableButton("[ライブラリに戻る]", "/gemini library", "クリックでライブラリに戻る", net.md_5.bungee.api.ChatColor.YELLOW));
         player.spigot().sendMessage(line);
+        player.sendMessage("");
+    }
+
+    // ==================== Mode Navigation Footer ====================
+
+    private void sendModeFooter(Player player) {
+        UUID playerId = player.getUniqueId();
+        SessionMode mode = getSessionMode(playerId);
+
+        player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
+
+        if (mode == SessionMode.CHAT) {
+            sendClickableLine(player,
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[モデル変更]", "/gemini model", "クリックでモデル変更", net.md_5.bungee.api.ChatColor.YELLOW),
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[履歴クリア]", "/gemini clear", "クリックで会話履歴をクリア", net.md_5.bungee.api.ChatColor.GRAY),
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+        } else if (mode == SessionMode.SEARCH) {
+            sendClickableLine(player,
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[モデル変更]", "/gemini model", "クリックでモデル変更", net.md_5.bungee.api.ChatColor.YELLOW),
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+        } else if (mode == SessionMode.COMMAND) {
+            sendClickableLine(player,
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[モデル変更]", "/gemini model", "クリックでモデル変更", net.md_5.bungee.api.ChatColor.YELLOW),
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+        } else if (mode == SessionMode.IMAGE) {
+            sendClickableLine(player,
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[設定変更]", "/gemini image settings", "クリックで設定を表示", net.md_5.bungee.api.ChatColor.YELLOW),
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[ライブラリ]", "/gemini library", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+        } else {
+            sendClickableLine(player,
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+        }
         player.sendMessage("");
     }
 
