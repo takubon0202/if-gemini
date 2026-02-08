@@ -5,8 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.gemininpc</groupId>
-    <artifactId>GeminiNPC</artifactId>
-    <version>2.0.1</version>
+    <artifactId>if-Gemini</artifactId>
+    <version>2.1.0</version>
     <packaging>jar</packaging>
 
     <name>GeminiNPC</name>

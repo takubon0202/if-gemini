@@ -1,5 +1,5 @@
 name: GeminiNPC
-version: '2.0.1'
+version: '2.1.0'
 main: com.gemininpc.plugin.GeminiNPC
 api-version: '1.21'
 authors: [MinecraftAI]
@@ -8,7 +8,7 @@ description: Minecraft NPC AI Counseling Plugin using Google Gemini with Web Sea
 commands:
   gemini:
     description: Start GeminiNPC system and show main menu
-    usage: /gemini [chat|search|image|model|help|status|library|menu|exit|clear]
+    usage: /gemini [chat|search|image|model|help|status|library|command|menu|exit|clear]
     aliases: [ai, counsel]
   websearch:
     description: Search the web using AI (requires active session)

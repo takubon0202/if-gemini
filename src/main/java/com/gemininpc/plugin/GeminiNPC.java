@@ -94,7 +94,8 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         MAIN_MENU,   // Main menu displayed
         CHAT,        // Chat/counseling mode
         SEARCH,      // Search mode
-        IMAGE        // Image generation mode
+        IMAGE,       // Image generation mode
+        COMMAND      // Command generation mode
     }
 
     private String imageHosting;
@@ -163,7 +164,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
 
         getLogger().info("========================================");
-        getLogger().info("GeminiNPC Plugin v2.0.1 Enabled!");
+        getLogger().info("if-Gemini Plugin v2.0.2 Enabled!");
         getLogger().info("Default Model: " + defaultModelName);
         getLogger().info("Default Image Model: " + defaultImageModel);
         getLogger().info("Image Hosting: " + imageHosting);
@@ -370,6 +371,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             case CHAT: return "相談モード";
             case SEARCH: return "検索モード";
             case IMAGE: return "画像生成モード";
+            case COMMAND: return "コマンド生成";
             case MAIN_MENU: return "メインメニュー";
             default: return "未起動";
         }
@@ -491,7 +493,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         List<String> suggestions = new ArrayList<>();
 
         if (mode == SessionMode.MAIN_MENU) {
-            List<String> cmds = Arrays.asList("1", "2", "3", "4", "5", "6", "7", "chat", "search", "image", "model", "help", "status", "library", "exit");
+            List<String> cmds = Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "chat", "search", "image", "model", "help", "status", "library", "command", "exit");
             for (String cmd : cmds) {
                 if (cmd.startsWith(input)) suggestions.add("/" + cmd);
             }
@@ -521,6 +523,8 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 }
             }
         } else if (mode == SessionMode.CHAT || mode == SessionMode.SEARCH) {
+            if ("exit".startsWith(input)) suggestions.add("/exit");
+        } else if (mode == SessionMode.COMMAND) {
             if ("exit".startsWith(input)) suggestions.add("/exit");
         }
 
@@ -607,8 +611,13 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 case "ライブラリ":
                     showLibrary(player, 1);
                     return;
+                case "8":
+                case "command":
+                case "コマンド":
+                    startCommandMode(player);
+                    return;
                 default:
-                    player.sendMessage(ChatColor.RED + "無効な選択です。1〜7の数字を入力してください。");
+                    player.sendMessage(ChatColor.RED + "無効な選択です。1〜8の数字を入力してください。");
                     return;
             }
         }
@@ -763,6 +772,26 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             });
             return;
         }
+
+        // Handle command generation mode
+        if (mode == SessionMode.COMMAND) {
+            event.setCancelled(true);
+            String input = command.substring(1).trim();
+            String rawInput = rawMessage.substring(1).trim();
+
+            if (input.isEmpty()) {
+                player.sendMessage(ChatColor.GRAY + "/<やりたいこと> でコマンドを生成します。/exit でメニューに戻ります。");
+                return;
+            }
+
+            player.sendMessage(ChatColor.GOLD + "[あなた] " + ChatColor.WHITE + rawInput);
+            player.sendMessage(ChatColor.GOLD + "✦ " + ChatColor.GRAY + "コマンド生成中...");
+
+            Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+                processCommandGeneration(player, rawInput);
+            });
+            return;
+        }
     }
 
     @Override
@@ -894,6 +923,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                             showLibrary(player, 1);
                         }
                         return true;
+                    case "command":
+                    case "コマンド":
+                    case "8":
+                        startCommandMode(player);
+                        return true;
                     case "imagemodel":
                         if (args.length > 1) {
                             handleImageModelChange(player, args[1]);
@@ -920,7 +954,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                         return true;
                     default:
                         player.sendMessage(ChatColor.RED + "不明なサブコマンド: " + subCommand);
-                        player.sendMessage(ChatColor.YELLOW + "使用方法: /gemini [chat|search|image|model|help|status|library|menu|exit]");
+                        player.sendMessage(ChatColor.YELLOW + "使用方法: /gemini [chat|search|image|model|help|status|library|command|menu|exit]");
                         return true;
                 }
             }
@@ -1056,7 +1090,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             if (args.length == 1) {
                 // First argument - main subcommands
                 List<String> subCommands = Arrays.asList(
-                    "chat", "search", "image", "model", "help", "status", "library", "menu", "exit", "clear", "imagemodel"
+                    "chat", "search", "image", "model", "help", "status", "library", "command", "menu", "exit", "clear", "imagemodel"
                 );
                 String input = args[0].toLowerCase();
                 completions = subCommands.stream()
@@ -1193,6 +1227,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             createClickableButton("[7] ライブラリ", "/7", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             text("過去の画像", net.md_5.bungee.api.ChatColor.GRAY));
+        sendClickableLine(player,
+            text("    ", net.md_5.bungee.api.ChatColor.WHITE),
+            createClickableButton("[8] コマンド生成", "/8", "クリックでコマンド生成モードを開始", net.md_5.bungee.api.ChatColor.GOLD),
+            text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+            text("AIでコマンド作成", net.md_5.bungee.api.ChatColor.GRAY));
         player.sendMessage("");
         player.sendMessage(ChatColor.DARK_GRAY + "  ─────────────────────────────────");
         sendClickableLine(player,
@@ -1284,6 +1323,214 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
         player.sendMessage("");
+    }
+
+    private void startCommandMode(Player player) {
+        UUID playerId = player.getUniqueId();
+        playerSessionMode.put(playerId, SessionMode.COMMAND);
+        String model = getModelDisplayName(getPlayerModel(playerId));
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GOLD + "╔═══════════════════════════════════════════════╗");
+        player.sendMessage(ChatColor.GOLD + "║  " + ChatColor.WHITE + "コマンド生成モード" + ChatColor.GOLD + "                         ║");
+        player.sendMessage(ChatColor.GOLD + "╠═══════════════════════════════════════════════╣");
+        player.sendMessage(ChatColor.GOLD + "║ " + ChatColor.GRAY + "モデル: " + ChatColor.WHITE + model + ChatColor.GOLD + "               ║");
+        player.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════════════╝");
+        player.sendMessage("");
+        player.sendMessage(ChatColor.WHITE + "  使い方:");
+        player.sendMessage(ChatColor.GRAY + "    /<やりたいこと> → AIがコマンドを生成");
+        player.sendMessage("");
+        player.sendMessage(ChatColor.WHITE + "  例:");
+        player.sendMessage(ChatColor.GRAY + "    /最強の剣を作って");
+        player.sendMessage(ChatColor.GRAY + "    /ダイヤの装備を全部ください");
+        player.sendMessage(ChatColor.GRAY + "    /saikyo no ken wo tukutte");
+        player.sendMessage("");
+        player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
+        sendClickableLine(player,
+            text("    ", net.md_5.bungee.api.ChatColor.WHITE),
+            createClickableButton("[メニューに戻る]", "/exit", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+        player.sendMessage("");
+    }
+
+    private void processCommandGeneration(Player player, String userRequest) {
+        UUID playerId = player.getUniqueId();
+        String playerModel = getPlayerModel(playerId);
+
+        JsonArray contents = new JsonArray();
+        JsonObject userPart = new JsonObject();
+        userPart.addProperty("role", "user");
+        JsonArray userParts = new JsonArray();
+        JsonObject textPart = new JsonObject();
+        textPart.addProperty("text", userRequest);
+        userParts.add(textPart);
+        userPart.add("parts", userParts);
+        contents.add(userPart);
+
+        String response = callGeminiAPIInternal(contents, playerModel, getCommandGenerationSystemPrompt());
+
+        Bukkit.getScheduler().runTask(this, () -> {
+            if (response == null || response.isEmpty()) {
+                player.sendMessage(ChatColor.RED + "コマンドを生成できませんでした。別の表現で試してください。");
+                return;
+            }
+            displayCommandResult(player, response, userRequest);
+        });
+    }
+
+    private void displayCommandResult(Player player, String response, String originalRequest) {
+        String cleanResponse = stripMarkdown(response);
+        List<String> commands = new ArrayList<>();
+        String explanation = null;
+
+        for (String line : cleanResponse.split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("COMMAND:")) {
+                commands.add(trimmed.substring("COMMAND:".length()).trim());
+            } else if (trimmed.startsWith("EXPLAIN:")) {
+                explanation = trimmed.substring("EXPLAIN:".length()).trim();
+            }
+        }
+
+        // Fallback: if format not matched, look for lines starting with /
+        if (commands.isEmpty()) {
+            for (String line : cleanResponse.split("\n")) {
+                if (line.trim().startsWith("/")) {
+                    commands.add(line.trim());
+                    break;
+                }
+            }
+            if (explanation == null) {
+                String cmdStr = commands.isEmpty() ? "" : commands.get(0);
+                explanation = cleanResponse.replace(cmdStr, "").trim();
+            }
+        }
+
+        if (commands.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "コマンドを生成できませんでした。");
+            player.sendMessage(ChatColor.GRAY + cleanResponse);
+            return;
+        }
+
+        // Display result UI
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GOLD + "╔═══════════════════════════════════════════════╗");
+        player.sendMessage(ChatColor.GOLD + "║  " + ChatColor.WHITE + "コマンド生成結果" + ChatColor.GOLD + "                           ║");
+        player.sendMessage(ChatColor.GOLD + "╚═══════════════════════════════════════════════╝");
+        player.sendMessage("");
+        player.sendMessage(ChatColor.GRAY + "  リクエスト: " + ChatColor.WHITE + originalRequest);
+        player.sendMessage("");
+        player.sendMessage(ChatColor.YELLOW + "  コマンド:");
+
+        for (int i = 0; i < commands.size(); i++) {
+            String cmd = commands.get(i);
+            if (commands.size() > 1) {
+                player.sendMessage(ChatColor.AQUA + "  " + (i + 1) + ". " + cmd);
+            } else {
+                player.sendMessage(ChatColor.AQUA + "  " + cmd);
+            }
+            sendClickableLine(player,
+                text("     ", net.md_5.bungee.api.ChatColor.WHITE),
+                createClickableButton("[実行]", cmd, "クリックでコマンドを実行", net.md_5.bungee.api.ChatColor.GREEN, true),
+                text(" ", net.md_5.bungee.api.ChatColor.GRAY),
+                createSuggestButton("[コピー]", cmd, "クリックでチャットバーにコピー", net.md_5.bungee.api.ChatColor.YELLOW, false));
+        }
+
+        player.sendMessage("");
+
+        if (explanation != null && !explanation.isEmpty()) {
+            player.sendMessage(ChatColor.GRAY + "  説明:");
+            for (String wl : wrapText(explanation, 45)) {
+                player.sendMessage(ChatColor.WHITE + "  " + wl);
+            }
+            player.sendMessage("");
+        }
+
+        player.sendMessage(ChatColor.DARK_GRAY + "─────────────────────────────────");
+        player.sendMessage(ChatColor.GRAY + "  次のリクエストを入力 | " + ChatColor.YELLOW + "/exit" + ChatColor.GRAY + " → メニューに戻る");
+        player.sendMessage("");
+    }
+
+    private String getCommandGenerationSystemPrompt() {
+        return "あなたはMinecraft 1.21+ コマンド生成の専門AIです。\n" +
+               "ユーザーの自然言語リクエストからMinecraftコマンドを生成してください。\n\n" +
+               "【必ず以下のフォーマットで回答】\n" +
+               "COMMAND: /生成したコマンド\n" +
+               "EXPLAIN: コマンドの説明（1-2文、日本語）\n\n" +
+               "【複数コマンドが必要な場合】\n" +
+               "COMMAND: /コマンド1\n" +
+               "COMMAND: /コマンド2\n" +
+               "EXPLAIN: 全体の説明\n\n" +
+               "【ローマ字入力の解釈】\n" +
+               "ユーザーはMinecraftチャットからローマ字で入力する場合があります:\n" +
+               "- 'saikyo no ken' → '最強の剣'\n" +
+               "- 'sora wo toberu kutsu' → '空を飛べる靴'\n" +
+               "- 'daiya no yoroi zenbu' → 'ダイヤの鎧全部'\n\n" +
+               "【Minecraft 1.21+ コマンド構文 (Component形式)】\n\n" +
+               "=== /give コマンド ===\n" +
+               "/give <対象> <アイテムID>[コンポーネント] [個数]\n" +
+               "コンポーネント形式: [key=value,key=value]\n\n" +
+               "エンチャント: [enchantments={\"enchant_name\":level}]\n" +
+               "例: /give @p netherite_sword[enchantments={\"sharpness\":255,\"fire_aspect\":2,\"knockback\":2,\"looting\":3,\"sweeping_edge\":3,\"unbreaking\":3,\"mending\":1}]\n\n" +
+               "カスタム名: [custom_name='\"名前\"']\n" +
+               "例: /give @p diamond_sword[custom_name='\"伝説の剣\"',enchantments={\"sharpness\":255}]\n\n" +
+               "ポーション: [potion_contents={custom_effects:[{id:\"effect\",amplifier:N,duration:T}]}]\n" +
+               "例: /give @p potion[potion_contents={custom_effects:[{id:\"strength\",amplifier:255,duration:999999}]}]\n\n" +
+               "耐久無限: [unbreakable={}]\n" +
+               "染色: [dyed_color={rgb:16711680}]\n\n" +
+               "=== 主要エンチャント一覧 ===\n" +
+               "剣: sharpness, smite, bane_of_arthropods, fire_aspect, knockback, looting, sweeping_edge\n" +
+               "弓: power, punch, flame, infinity\n" +
+               "防具: protection, fire_protection, blast_protection, projectile_protection, thorns\n" +
+               "ツール: efficiency, silk_touch, fortune, unbreaking, mending\n" +
+               "ブーツ: feather_falling, depth_strider, frost_walker, soul_speed, swift_sneak\n" +
+               "トライデント: riptide, loyalty, channeling, impaling\n" +
+               "クロスボウ: quick_charge, multishot, piercing\n" +
+               "その他: aqua_affinity, respiration, wind_burst, density, breach\n\n" +
+               "=== /summon コマンド ===\n" +
+               "/summon <エンティティID> [座標] [NBTデータ]\n" +
+               "例: /summon zombie ~ ~ ~ {IsBaby:1b,ArmorItems:[{},{},{},{id:\"diamond_helmet\",count:1}]}\n" +
+               "例: /summon lightning_bolt ~ ~ ~\n" +
+               "例: /summon creeper ~ ~ ~ {Fuse:0,ExplosionRadius:10}\n\n" +
+               "主なエンティティ: zombie, skeleton, creeper, spider, enderman, wither,\n" +
+               "  ender_dragon, blaze, ghast, phantom, warden, iron_golem, villager,\n" +
+               "  wolf, cat, horse, pig, cow, sheep, chicken, bee, axolotl, allay,\n" +
+               "  camel, sniffer, armadillo, breeze, bogged\n\n" +
+               "=== /effect コマンド ===\n" +
+               "/effect give <対象> <エフェクトID> [秒数] [レベル] [パーティクル非表示]\n" +
+               "例: /effect give @p speed 999999 255 true\n\n" +
+               "主なエフェクト: speed, slowness, haste, mining_fatigue, strength,\n" +
+               "  instant_health, instant_damage, jump_boost, nausea, regeneration,\n" +
+               "  resistance, fire_resistance, water_breathing, invisibility,\n" +
+               "  night_vision, saturation, glowing, levitation, slow_falling,\n" +
+               "  conduit_power, dolphins_grace, darkness, wind_charged,\n" +
+               "  weaving, oozing, infested, trial_omen, raid_omen, bad_omen\n\n" +
+               "=== その他のコマンド ===\n" +
+               "/gamemode <モード> [対象] (creative/survival/adventure/spectator)\n" +
+               "/tp <対象> <x> <y> <z>\n" +
+               "/weather <天候> [秒数] (clear/rain/thunder)\n" +
+               "/time set <値> (day/noon/night/midnight/0-24000)\n" +
+               "/kill <対象>\n" +
+               "/clear <対象> [アイテム] [個数]\n" +
+               "/xp add <対象> <量> [levels/points]\n" +
+               "/enchant <対象> <エンチャント> [レベル]\n" +
+               "/fill <x1> <y1> <z1> <x2> <y2> <z2> <ブロック> [replace/destroy/keep]\n" +
+               "/setblock <x> <y> <z> <ブロック>\n" +
+               "/clone <x1> <y1> <z1> <x2> <y2> <z2> <dx> <dy> <dz>\n" +
+               "/particle <パーティクル> <x> <y> <z>\n" +
+               "/playsound <サウンド> <ソース> <対象>\n" +
+               "/title <対象> title {\"text\":\"メッセージ\"}\n" +
+               "/gamerule <ルール> <値>\n\n" +
+               "=== 対象セレクター ===\n" +
+               "@p (最寄りプレイヤー), @a (全プレイヤー), @r (ランダム), @e (全エンティティ), @s (実行者)\n" +
+               "引数: @e[type=zombie,distance=..10,limit=1,sort=nearest]\n\n" +
+               "【重要なルール】\n" +
+               "- コマンドは必ず / で始める\n" +
+               "- Minecraft 1.21+ のComponent形式を使用（[]でコンポーネント指定）\n" +
+               "- 「最強」と言われたらエンチャントレベル255で全関連エンチャント付与\n" +
+               "- 対象が指定されなければ @p を使用\n" +
+               "- 座標が指定されなければ ~ ~ ~ を使用\n" +
+               "- 実行不可能なリクエストの場合、最も近い実現可能なコマンドを生成し、制限を説明\n" +
+               "- COMMAND:行とEXPLAIN:行以外は出力しない";
     }
 
     private void showImageModelSelection(Player player) {

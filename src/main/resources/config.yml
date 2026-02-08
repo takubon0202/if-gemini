@@ -75,3 +75,9 @@ image:
 library:
   # 1プレイヤーあたりの最大保存数
   max-history: 50
+
+# コマンド生成設定
+command:
+  # コマンド生成に使用するモデル（未設定時はプレイヤーの選択モデルを使用）
+  # pro推奨（複雑なコマンド生成に適している）
+  # model: "gemini-3-pro-preview"
