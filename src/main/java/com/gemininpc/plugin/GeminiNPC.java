@@ -122,7 +122,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
 
         getLogger().info("========================================");
-        getLogger().info("GeminiNPC Plugin v1.8.0 Enabled!");
+        getLogger().info("GeminiNPC Plugin v1.9.0 Enabled!");
         getLogger().info("Default Model: " + defaultModelName);
         getLogger().info("Default Image Model: " + defaultImageModel);
         getLogger().info("Image Hosting: " + imageHosting);
@@ -2032,7 +2032,9 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 Bukkit.getScheduler().runTask(this, () -> {
                     if (!player.isOnline()) return;
                     player.sendMessage(ChatColor.RED + "[画像生成] 画像のアップロードに失敗しました。");
+                    player.sendMessage(ChatColor.GRAY + "全てのホスティングサービスへの接続に失敗しました。");
                     player.sendMessage(ChatColor.GRAY + "しばらく待ってから再度お試しください。");
+                    player.sendMessage(ChatColor.DARK_GRAY + "サーバーログで詳細を確認できます。");
                 });
                 return;
             }
@@ -2210,6 +2212,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             conn.setRequestMethod("POST");
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             conn.setConnectTimeout(15000);
             conn.setReadTimeout(30000);
 
@@ -2230,8 +2233,18 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 if (json.has("success") && json.get("success").getAsBoolean()) {
                     return json.getAsJsonObject("data").get("display_url").getAsString();
                 }
+                getLogger().warning("ImgBB response indicates failure: " + resp.toString().substring(0, Math.min(resp.length(), 200)));
             } else {
-                getLogger().severe("ImgBB upload error: " + responseCode);
+                getLogger().severe("ImgBB upload error (HTTP " + responseCode + ")");
+                // エラー詳細をログに出力
+                try (java.io.InputStream es = conn.getErrorStream()) {
+                    if (es != null) {
+                        String err = new BufferedReader(new InputStreamReader(es, StandardCharsets.UTF_8)).readLine();
+                        if (err != null) {
+                            getLogger().severe("ImgBB error detail: " + (err.length() > 200 ? err.substring(0, 200) + "..." : err));
+                        }
+                    }
+                }
             }
 
         } catch (Exception e) {
@@ -2256,15 +2269,23 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-            conn.setRequestProperty("User-Agent", "GeminiNPC/1.8.0");
             conn.setConnectTimeout(15000);
             conn.setReadTimeout(60000);
 
+            // Cloudflare対策: ブラウザに偽装し、Origin/Refererヘッダーを追加
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            conn.setRequestProperty("Accept", "text/plain, */*");
+            conn.setRequestProperty("Accept-Language", "ja,en-US;q=0.9,en;q=0.8");
+            conn.setRequestProperty("Origin", "https://catbox.moe");
+            conn.setRequestProperty("Referer", "https://catbox.moe/");
+            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+
             try (OutputStream os = conn.getOutputStream()) {
                 writeMultipartField(os, boundary, "reqtype", "fileupload");
+                writeMultipartField(os, boundary, "userhash", "");
                 writeMultipartFile(os, boundary, "fileToUpload", "generated_image.png", imageData, "image/png");
                 os.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+                os.flush();
             }
 
             int responseCode = conn.getResponseCode();
@@ -2276,17 +2297,82 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                     while ((line = br.readLine()) != null) resp.append(line);
                 }
                 String result = resp.toString().trim();
-                if (result.startsWith("https://")) {
+                if (result.startsWith("https://") || result.startsWith("http://")) {
                     return result;
                 }
                 getLogger().warning("Catbox returned unexpected response: " + result);
             } else {
-                getLogger().severe("Catbox upload error: " + responseCode);
+                getLogger().severe("Catbox upload error (HTTP " + responseCode + ")");
+                // Cloudflareのブロック(403/503)等のエラー詳細をログに出力
+                try (java.io.InputStream es = conn.getErrorStream()) {
+                    if (es != null) {
+                        String err = new BufferedReader(new InputStreamReader(es, StandardCharsets.UTF_8)).readLine();
+                        if (err != null) {
+                            getLogger().severe("Error detail: " + (err.length() > 200 ? err.substring(0, 200) + "..." : err));
+                        }
+                    }
+                }
             }
 
         } catch (Exception e) {
             getLogger().severe("Catbox upload failed: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+
+        // フォールバック: Catboxが失敗した場合はLitterbox(一時ファイル)を試行
+        getLogger().warning("Catbox upload failed, trying fallback to Litterbox...");
+        return uploadToLitterbox(imageData);
+    }
+
+    private String uploadToLitterbox(byte[] imageData) {
+        HttpURLConnection conn = null;
+        try {
+            String boundary = "----GeminiNPCFallback" + System.currentTimeMillis();
+            URL url = new URL("https://litterbox.catbox.moe/resources/internals/api.php");
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(60000);
+
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            conn.setRequestProperty("Accept", "text/plain, */*");
+            conn.setRequestProperty("Origin", "https://litterbox.catbox.moe");
+            conn.setRequestProperty("Referer", "https://litterbox.catbox.moe/");
+            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                writeMultipartField(os, boundary, "reqtype", "fileupload");
+                writeMultipartField(os, boundary, "time", "72h");
+                writeMultipartFile(os, boundary, "fileToUpload", "generated_image.png", imageData, "image/png");
+                os.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+                os.flush();
+            }
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                StringBuilder resp = new StringBuilder();
+                try (BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = br.readLine()) != null) resp.append(line);
+                }
+                String result = resp.toString().trim();
+                if (result.startsWith("https://") || result.startsWith("http://")) {
+                    getLogger().info("Litterbox fallback succeeded: " + result);
+                    return result;
+                }
+                getLogger().warning("Litterbox returned unexpected response: " + result);
+            } else {
+                getLogger().severe("Litterbox upload error (HTTP " + responseCode + ")");
+            }
+
+        } catch (Exception e) {
+            getLogger().severe("Litterbox fallback failed: " + e.getMessage());
         } finally {
             if (conn != null) {
                 conn.disconnect();

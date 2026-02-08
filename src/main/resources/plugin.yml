@@ -1,5 +1,5 @@
 name: GeminiNPC
-version: '1.8.0'
+version: '1.9.0'
 main: com.gemininpc.plugin.GeminiNPC
 api-version: '1.21'
 authors: [MinecraftAI]
