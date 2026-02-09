@@ -807,9 +807,32 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
         // Handle command generation mode
         if (mode == SessionMode.COMMAND) {
-            event.setCancelled(true);
             String input = command.substring(1).trim();
             String rawInput = rawMessage.substring(1).trim();
+            String cmdName = input.split(" ")[0].toLowerCase();
+
+            // Allow Minecraft vanilla commands to pass through (e.g. from [実行] button)
+            if (cmdName.equals("give") || cmdName.equals("summon") || cmdName.equals("effect") ||
+                cmdName.equals("tp") || cmdName.equals("teleport") || cmdName.equals("gamemode") ||
+                cmdName.equals("kill") || cmdName.equals("clear") || cmdName.equals("weather") ||
+                cmdName.equals("time") || cmdName.equals("xp") || cmdName.equals("experience") ||
+                cmdName.equals("enchant") || cmdName.equals("fill") || cmdName.equals("setblock") ||
+                cmdName.equals("clone") || cmdName.equals("particle") || cmdName.equals("playsound") ||
+                cmdName.equals("title") || cmdName.equals("gamerule") || cmdName.equals("spawnpoint") ||
+                cmdName.equals("setworldspawn") || cmdName.equals("difficulty") ||
+                cmdName.equals("execute") || cmdName.equals("data") || cmdName.equals("attribute") ||
+                cmdName.equals("item") || cmdName.equals("place") || cmdName.equals("ride") ||
+                cmdName.equals("say") || cmdName.equals("msg") || cmdName.equals("tell") ||
+                cmdName.equals("spreadplayers") || cmdName.equals("stopsound") ||
+                cmdName.equals("scoreboard") || cmdName.equals("tag") || cmdName.equals("team") ||
+                cmdName.equals("bossbar") || cmdName.equals("schedule") || cmdName.equals("function") ||
+                cmdName.equals("forceload") || cmdName.equals("worldborder") || cmdName.equals("locate") ||
+                cmdName.equals("loot") || cmdName.equals("replaceitem") || cmdName.equals("damage")) {
+                // Let the command pass through to the server
+                return;
+            }
+
+            event.setCancelled(true);
 
             if (input.isEmpty()) {
                 player.sendMessage(ChatColor.GRAY + "チャットでやりたいことを入力してください。ボタンからモデル変更・メニューに戻れます。");
@@ -1610,6 +1633,36 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         command = command.replace("trialomen", "trial_omen");
         command = command.replace("raidomen", "raid_omen");
         command = command.replace("badomen", "bad_omen");
+
+        // Fix enchantments missing levels: key (MC 1.21-1.21.4 requires it)
+        // Pattern: enchantments={sharpness:5,...} -> enchantments={levels:{sharpness:5,...}}
+        // Also handles: enchantments={"sharpness":5,...} with double quotes
+        java.util.regex.Pattern enchPattern = java.util.regex.Pattern.compile(
+            "enchantments=\\{(?!levels:)([^}]+)\\}");
+        java.util.regex.Matcher enchMatcher = enchPattern.matcher(command);
+        StringBuffer sb = new StringBuffer();
+        while (enchMatcher.find()) {
+            String inner = enchMatcher.group(1);
+            // Remove double quotes from SNBT keys (e.g. "sharpness" -> sharpness)
+            inner = inner.replaceAll("\"([a-z_]+)\":", "$1:");
+            enchMatcher.appendReplacement(sb, "enchantments={levels:{" + inner + "}}");
+        }
+        enchMatcher.appendTail(sb);
+        command = sb.toString();
+
+        // Also remove double quotes from SNBT keys in enchantments with levels: already present
+        java.util.regex.Pattern levelsQuotePattern = java.util.regex.Pattern.compile(
+            "(enchantments=\\{levels:\\{)([^}]+)(\\}\\})");
+        java.util.regex.Matcher levelsQuoteMatcher = levelsQuotePattern.matcher(command);
+        sb = new StringBuffer();
+        while (levelsQuoteMatcher.find()) {
+            String inner = levelsQuoteMatcher.group(2);
+            inner = inner.replaceAll("\"([a-z_]+)\":", "$1:");
+            levelsQuoteMatcher.appendReplacement(sb,
+                java.util.regex.Matcher.quoteReplacement(levelsQuoteMatcher.group(1) + inner + levelsQuoteMatcher.group(3)));
+        }
+        levelsQuoteMatcher.appendTail(sb);
+        command = sb.toString();
 
         return command;
     }
