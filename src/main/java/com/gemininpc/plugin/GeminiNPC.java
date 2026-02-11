@@ -1663,6 +1663,33 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         enchQuoteMatcher.appendTail(sb);
         command = sb.toString();
 
+        // Fix custom_name: convert JSON text component to SNBT direct format (MC 1.21.5+)
+        // Pattern: custom_name='{"text":"NAME","italic":false}' -> custom_name={text:'NAME',italic:false}
+        // Also: custom_name='{"text":"NAME","color":"COLOR","italic":false}'
+        java.util.regex.Pattern cnJsonPattern = java.util.regex.Pattern.compile(
+            "custom_name='\\{\"text\":\"([^\"]*?)\"(?:,\"color\":\"([^\"]*?)\")?(?:,\"bold\":(true|false))?(?:,\"italic\":(true|false))?\\}'");
+        java.util.regex.Matcher cnJsonMatcher = cnJsonPattern.matcher(command);
+        sb = new StringBuffer();
+        while (cnJsonMatcher.find()) {
+            String text = cnJsonMatcher.group(1);
+            String color = cnJsonMatcher.group(2);
+            String bold = cnJsonMatcher.group(3);
+            String italic = cnJsonMatcher.group(4);
+            StringBuilder snbt = new StringBuilder("custom_name={text:'");
+            snbt.append(text).append("'");
+            if (color != null) snbt.append(",color:'").append(color).append("'");
+            if (bold != null) snbt.append(",bold:").append(bold);
+            if (italic != null) snbt.append(",italic:").append(italic);
+            snbt.append("}");
+            cnJsonMatcher.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(snbt.toString()));
+        }
+        cnJsonMatcher.appendTail(sb);
+        command = sb.toString();
+
+        // Fix lore: convert JSON format to SNBT direct format
+        // Pattern: lore=['{"text":"TEXT"}'] -> lore=[{text:'TEXT'}]
+        command = command.replaceAll("'\\{\"text\":\"([^\"]*?)\"\\}'", "{text:'$1'}");
+
         return command;
     }
 
@@ -1701,24 +1728,25 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "--- エンチャント (フラット形式・levels: 不要) ---\n" +
                "形式: enchantments={エンチャントID:レベル,エンチャントID:レベル}\n" +
                "例: /give @p netherite_sword[enchantments={sharpness:255,fire_aspect:2,knockback:2,looting:3,sweeping_edge:3,unbreaking:3,mending:1}]\n\n" +
-               "--- カスタム名 (JSON text component形式) ---\n" +
-               "形式: custom_name='{\"text\":\"名前\",\"italic\":false}'\n" +
-               "例: /give @p diamond_sword[custom_name='{\"text\":\"伝説の剣\",\"italic\":false}']\n" +
-               "色付き: custom_name='{\"text\":\"炎の剣\",\"color\":\"red\",\"italic\":false}'\n\n" +
+               "--- カスタム名 (SNBT直接形式 ※JSONではない) ---\n" +
+               "形式: custom_name={text:'名前',italic:false}\n" +
+               "例: /give @p diamond_sword[custom_name={text:'伝説の剣',italic:false}]\n" +
+               "色付き: custom_name={text:'炎の剣',color:'red',italic:false}\n" +
+               "★絶対に custom_name='{\"text\":...}' のJSON形式は使わない★\n\n" +
                "--- ポーション ---\n" +
-               "形式: potion_contents={custom_effects:[{id:\"エフェクトID\",amplifier:N,duration:T}]}\n" +
-               "例: /give @p potion[potion_contents={custom_effects:[{id:\"strength\",amplifier:255,duration:999999}]}]\n\n" +
+               "形式: potion_contents={custom_effects:[{id:エフェクトID,amplifier:N,duration:T}]}\n" +
+               "例: /give @p potion[potion_contents={custom_effects:[{id:strength,amplifier:255,duration:999999}]}]\n\n" +
                "--- その他コンポーネント ---\n" +
                "耐久無限: unbreakable={}\n" +
                "染色: dyed_color={rgb:16711680}\n" +
-               "説明文: lore=['{\"text\":\"説明文\"}','{\"text\":\"2行目\"}']\n\n" +
+               "説明文: lore=[{text:'説明文'},{text:'2行目'}]\n\n" +
                "--- 最強装備の完全な正しい例 ---\n" +
-               "/give @p diamond_sword[custom_name='{\"text\":\"最強の剣\",\"italic\":false}',unbreakable={},enchantments={sharpness:255,smite:255,bane_of_arthropods:255,fire_aspect:255,knockback:255,looting:255,sweeping_edge:255,unbreaking:255,mending:1}] 1\n\n" +
+               "/give @p diamond_sword[custom_name={text:'最強の剣',italic:false},unbreakable={},enchantments={sharpness:255,smite:255,bane_of_arthropods:255,fire_aspect:255,knockback:255,looting:255,sweeping_edge:255,unbreaking:255,mending:1}] 1\n\n" +
                "--- ネザライト全身装備の例 ---\n" +
-               "COMMAND: /give @p netherite_helmet[custom_name='{\"text\":\"最強のヘルメット\",\"italic\":false}',unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,respiration:3,aqua_affinity:1,thorns:255,unbreaking:255,mending:1}] 1\n" +
-               "COMMAND: /give @p netherite_chestplate[custom_name='{\"text\":\"最強のチェストプレート\",\"italic\":false}',unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,thorns:255,unbreaking:255,mending:1}] 1\n" +
-               "COMMAND: /give @p netherite_leggings[custom_name='{\"text\":\"最強のレギンス\",\"italic\":false}',unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,thorns:255,swift_sneak:3,unbreaking:255,mending:1}] 1\n" +
-               "COMMAND: /give @p netherite_boots[custom_name='{\"text\":\"最強のブーツ\",\"italic\":false}',unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,feather_falling:255,depth_strider:3,soul_speed:3,thorns:255,unbreaking:255,mending:1}] 1\n\n" +
+               "COMMAND: /give @p netherite_helmet[custom_name={text:'最強のヘルメット',italic:false},unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,respiration:3,aqua_affinity:1,thorns:255,unbreaking:255,mending:1}] 1\n" +
+               "COMMAND: /give @p netherite_chestplate[custom_name={text:'最強のチェストプレート',italic:false},unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,thorns:255,unbreaking:255,mending:1}] 1\n" +
+               "COMMAND: /give @p netherite_leggings[custom_name={text:'最強のレギンス',italic:false},unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,thorns:255,swift_sneak:3,unbreaking:255,mending:1}] 1\n" +
+               "COMMAND: /give @p netherite_boots[custom_name={text:'最強のブーツ',italic:false},unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,feather_falling:255,depth_strider:3,soul_speed:3,thorns:255,unbreaking:255,mending:1}] 1\n\n" +
                "=== エンチャントID一覧 (全てsnake_case) ===\n" +
                "剣: sharpness, smite, bane_of_arthropods, fire_aspect, knockback, looting, sweeping_edge\n" +
                "弓: power, punch, flame, infinity\n" +
@@ -1776,7 +1804,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "- 全てのIDはsnake_case必須（diamond_sword, fire_aspect）絶対に単語を繋げない\n" +
                "- enchantmentsはフラット形式: enchantments={sharpness:255} (levels: は使わない)\n" +
                "- SNBTのキーにダブルクォートは付けない: {sharpness:255} が正しい\n" +
-               "- custom_nameはJSON text component形式: '{\"text\":\"名前\",\"italic\":false}'\n" +
+               "- custom_nameはSNBT直接形式: custom_name={text:'名前',italic:false}\n" +
                "- 「最強」と言われたらエンチャントレベル255で全関連エンチャント付与\n" +
                "- 対象が指定されなければ @p を使用\n" +
                "- 座標が指定されなければ ~ ~ ~ を使用\n" +
