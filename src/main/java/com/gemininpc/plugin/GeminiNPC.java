@@ -563,6 +563,33 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             return; // Let the command handler process it
         }
 
+        // Allow Minecraft vanilla commands to pass through in ALL modes
+        String cmdName = command.substring(1).split(" ")[0].toLowerCase();
+        if (cmdName.equals("give") || cmdName.equals("summon") || cmdName.equals("effect") ||
+            cmdName.equals("tp") || cmdName.equals("teleport") || cmdName.equals("gamemode") ||
+            cmdName.equals("kill") || cmdName.equals("clear") || cmdName.equals("weather") ||
+            cmdName.equals("time") || cmdName.equals("xp") || cmdName.equals("experience") ||
+            cmdName.equals("enchant") || cmdName.equals("fill") || cmdName.equals("setblock") ||
+            cmdName.equals("clone") || cmdName.equals("particle") || cmdName.equals("playsound") ||
+            cmdName.equals("title") || cmdName.equals("gamerule") || cmdName.equals("spawnpoint") ||
+            cmdName.equals("setworldspawn") || cmdName.equals("difficulty") ||
+            cmdName.equals("execute") || cmdName.equals("data") || cmdName.equals("attribute") ||
+            cmdName.equals("item") || cmdName.equals("place") || cmdName.equals("ride") ||
+            cmdName.equals("say") || cmdName.equals("msg") || cmdName.equals("tell") ||
+            cmdName.equals("spreadplayers") || cmdName.equals("stopsound") ||
+            cmdName.equals("scoreboard") || cmdName.equals("tag") || cmdName.equals("team") ||
+            cmdName.equals("bossbar") || cmdName.equals("schedule") || cmdName.equals("function") ||
+            cmdName.equals("forceload") || cmdName.equals("worldborder") || cmdName.equals("locate") ||
+            cmdName.equals("loot") || cmdName.equals("replaceitem") || cmdName.equals("damage") ||
+            cmdName.equals("op") || cmdName.equals("deop") || cmdName.equals("ban") ||
+            cmdName.equals("kick") || cmdName.equals("whitelist") || cmdName.equals("stop") ||
+            cmdName.equals("reload") || cmdName.equals("me") || cmdName.equals("seed") ||
+            cmdName.equals("list") || cmdName.equals("help") || cmdName.equals("trigger") ||
+            cmdName.equals("advancement") || cmdName.equals("recipe") || cmdName.equals("return") ||
+            cmdName.equals("random") || cmdName.equals("tick") || cmdName.equals("debug")) {
+            return; // Let the command pass through to the server
+        }
+
         // Handle /exit - return to main menu or close
         if (command.equals("/exit") || command.equals("/back") || command.equals("/menu")) {
             event.setCancelled(true);
@@ -809,28 +836,6 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         if (mode == SessionMode.COMMAND) {
             String input = command.substring(1).trim();
             String rawInput = rawMessage.substring(1).trim();
-            String cmdName = input.split(" ")[0].toLowerCase();
-
-            // Allow Minecraft vanilla commands to pass through (e.g. from [実行] button)
-            if (cmdName.equals("give") || cmdName.equals("summon") || cmdName.equals("effect") ||
-                cmdName.equals("tp") || cmdName.equals("teleport") || cmdName.equals("gamemode") ||
-                cmdName.equals("kill") || cmdName.equals("clear") || cmdName.equals("weather") ||
-                cmdName.equals("time") || cmdName.equals("xp") || cmdName.equals("experience") ||
-                cmdName.equals("enchant") || cmdName.equals("fill") || cmdName.equals("setblock") ||
-                cmdName.equals("clone") || cmdName.equals("particle") || cmdName.equals("playsound") ||
-                cmdName.equals("title") || cmdName.equals("gamerule") || cmdName.equals("spawnpoint") ||
-                cmdName.equals("setworldspawn") || cmdName.equals("difficulty") ||
-                cmdName.equals("execute") || cmdName.equals("data") || cmdName.equals("attribute") ||
-                cmdName.equals("item") || cmdName.equals("place") || cmdName.equals("ride") ||
-                cmdName.equals("say") || cmdName.equals("msg") || cmdName.equals("tell") ||
-                cmdName.equals("spreadplayers") || cmdName.equals("stopsound") ||
-                cmdName.equals("scoreboard") || cmdName.equals("tag") || cmdName.equals("team") ||
-                cmdName.equals("bossbar") || cmdName.equals("schedule") || cmdName.equals("function") ||
-                cmdName.equals("forceload") || cmdName.equals("worldborder") || cmdName.equals("locate") ||
-                cmdName.equals("loot") || cmdName.equals("replaceitem") || cmdName.equals("damage")) {
-                // Let the command pass through to the server
-                return;
-            }
 
             event.setCancelled(true);
 
@@ -1755,13 +1760,15 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "ブーツ: feather_falling, depth_strider, frost_walker, soul_speed, swift_sneak\n" +
                "トライデント: riptide, loyalty, channeling, impaling\n" +
                "クロスボウ: quick_charge, multishot, piercing\n" +
+               "槍(spear): lunge, unbreaking, mending\n" +
                "その他: aqua_affinity, respiration, wind_burst, density, breach\n\n" +
                "=== アイテムID例 (全てsnake_case) ===\n" +
                "diamond_sword, netherite_sword, iron_sword, diamond_pickaxe, netherite_pickaxe\n" +
                "diamond_helmet, diamond_chestplate, diamond_leggings, diamond_boots\n" +
                "netherite_helmet, netherite_chestplate, netherite_leggings, netherite_boots\n" +
+               "槍: wooden_spear, stone_spear, copper_spear, iron_spear, golden_spear, diamond_spear, netherite_spear\n" +
                "enchanted_golden_apple, ender_pearl, golden_apple, splash_potion, lingering_potion\n" +
-               "elytra, shield, bow, crossbow, trident, totem_of_undying, name_tag\n\n" +
+               "elytra, shield, bow, crossbow, trident, totem_of_undying, name_tag, mace\n\n" +
                "=== /summon コマンド ===\n" +
                "/summon <エンティティID> [座標] [NBTデータ]\n" +
                "例: /summon zombie ~ ~ ~ {IsBaby:1b,ArmorItems:[{},{},{},{id:\"diamond_helmet\",count:1}]}\n" +
