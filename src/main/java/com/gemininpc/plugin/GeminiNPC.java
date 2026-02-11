@@ -1634,41 +1634,40 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         command = command.replace("raidomen", "raid_omen");
         command = command.replace("badomen", "bad_omen");
 
-        // Fix enchantments missing levels: key (MC 1.21-1.21.4 requires it)
-        // Pattern: enchantments={sharpness:5,...} -> enchantments={levels:{sharpness:5,...}}
-        // Also handles: enchantments={"sharpness":5,...} with double quotes
-        java.util.regex.Pattern enchPattern = java.util.regex.Pattern.compile(
-            "enchantments=\\{(?!levels:)([^}]+)\\}");
-        java.util.regex.Matcher enchMatcher = enchPattern.matcher(command);
+        // Fix enchantments: unwrap levels: key if present (MC 1.21.5+ uses flat format)
+        // Pattern: enchantments={levels:{sharpness:5,...}} -> enchantments={sharpness:5,...}
+        java.util.regex.Pattern levelsPattern = java.util.regex.Pattern.compile(
+            "enchantments=\\{levels:\\{([^}]+)\\}\\}");
+        java.util.regex.Matcher levelsMatcher = levelsPattern.matcher(command);
         StringBuffer sb = new StringBuffer();
-        while (enchMatcher.find()) {
-            String inner = enchMatcher.group(1);
-            // Remove double quotes from SNBT keys (e.g. "sharpness" -> sharpness)
+        while (levelsMatcher.find()) {
+            String inner = levelsMatcher.group(1);
+            // Remove double quotes from SNBT keys
             inner = inner.replaceAll("\"([a-z_]+)\":", "$1:");
-            enchMatcher.appendReplacement(sb, "enchantments={levels:{" + inner + "}}");
+            levelsMatcher.appendReplacement(sb, "enchantments={" + inner + "}");
         }
-        enchMatcher.appendTail(sb);
+        levelsMatcher.appendTail(sb);
         command = sb.toString();
 
-        // Also remove double quotes from SNBT keys in enchantments with levels: already present
-        java.util.regex.Pattern levelsQuotePattern = java.util.regex.Pattern.compile(
-            "(enchantments=\\{levels:\\{)([^}]+)(\\}\\})");
-        java.util.regex.Matcher levelsQuoteMatcher = levelsQuotePattern.matcher(command);
+        // Also remove double quotes from SNBT keys in flat enchantments format
+        java.util.regex.Pattern enchQuotePattern = java.util.regex.Pattern.compile(
+            "(enchantments=\\{)([^}]+)(\\})");
+        java.util.regex.Matcher enchQuoteMatcher = enchQuotePattern.matcher(command);
         sb = new StringBuffer();
-        while (levelsQuoteMatcher.find()) {
-            String inner = levelsQuoteMatcher.group(2);
+        while (enchQuoteMatcher.find()) {
+            String inner = enchQuoteMatcher.group(2);
             inner = inner.replaceAll("\"([a-z_]+)\":", "$1:");
-            levelsQuoteMatcher.appendReplacement(sb,
-                java.util.regex.Matcher.quoteReplacement(levelsQuoteMatcher.group(1) + inner + levelsQuoteMatcher.group(3)));
+            enchQuoteMatcher.appendReplacement(sb,
+                java.util.regex.Matcher.quoteReplacement(enchQuoteMatcher.group(1) + inner + enchQuoteMatcher.group(3)));
         }
-        levelsQuoteMatcher.appendTail(sb);
+        enchQuoteMatcher.appendTail(sb);
         command = sb.toString();
 
         return command;
     }
 
     private String getCommandGenerationSystemPrompt() {
-        return "あなたはMinecraft Java Edition 1.21〜1.21.4 コマンド生成の専門AIです。\n" +
+        return "あなたはMinecraft Java Edition 1.21.5以降 コマンド生成の専門AIです。\n" +
                "ユーザーの自然言語リクエストからMinecraftコマンドを生成してください。\n\n" +
                "【必ず以下のフォーマットで回答】\n" +
                "COMMAND: /生成したコマンド\n" +
@@ -1688,20 +1687,20 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "絶対に単語を繋げて書かないでください。\n" +
                "正: diamond_sword, fire_aspect, bane_of_arthropods, sweeping_edge, custom_name\n" +
                "誤: diamondsword, fireaspect, baneofarthropods, sweepingedge, customname\n\n" +
-               "★ ルール2: enchantments は levels: キー必須 ★\n" +
-               "1.21〜1.21.4では enchantments コンポーネント内に levels: キーが必要です。\n" +
-               "正: enchantments={levels:{sharpness:255}}\n" +
-               "誤: enchantments={sharpness:255}\n" +
+               "★ ルール2: enchantments はフラット形式（levels: キーは使わない） ★\n" +
+               "1.21.5以降では enchantments コンポーネントはフラットマップ形式です。\n" +
+               "正: enchantments={sharpness:255}\n" +
+               "誤: enchantments={levels:{sharpness:255}}\n" +
                "誤: enchantments={\"sharpness\":255}\n\n" +
                "★ ルール3: SNBT形式ではキーにダブルクォートを付けない ★\n" +
-               "正: {levels:{sharpness:255,fire_aspect:2}}\n" +
+               "正: {sharpness:255,fire_aspect:2}\n" +
                "誤: {\"sharpness\":255,\"fire_aspect\":2}\n\n" +
-               "【Minecraft 1.21〜1.21.4 コマンド構文 (データコンポーネント形式)】\n\n" +
+               "【Minecraft 1.21.5+ コマンド構文 (データコンポーネント形式)】\n\n" +
                "=== /give コマンド ===\n" +
                "/give <対象> <アイテムID>[コンポーネント1=値,コンポーネント2=値] [個数]\n\n" +
-               "--- エンチャント (levels: キー必須) ---\n" +
-               "形式: enchantments={levels:{エンチャントID:レベル,エンチャントID:レベル}}\n" +
-               "例: /give @p netherite_sword[enchantments={levels:{sharpness:255,fire_aspect:2,knockback:2,looting:3,sweeping_edge:3,unbreaking:3,mending:1}}]\n\n" +
+               "--- エンチャント (フラット形式・levels: 不要) ---\n" +
+               "形式: enchantments={エンチャントID:レベル,エンチャントID:レベル}\n" +
+               "例: /give @p netherite_sword[enchantments={sharpness:255,fire_aspect:2,knockback:2,looting:3,sweeping_edge:3,unbreaking:3,mending:1}]\n\n" +
                "--- カスタム名 (JSON text component形式) ---\n" +
                "形式: custom_name='{\"text\":\"名前\",\"italic\":false}'\n" +
                "例: /give @p diamond_sword[custom_name='{\"text\":\"伝説の剣\",\"italic\":false}']\n" +
@@ -1714,12 +1713,12 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "染色: dyed_color={rgb:16711680}\n" +
                "説明文: lore=['{\"text\":\"説明文\"}','{\"text\":\"2行目\"}']\n\n" +
                "--- 最強装備の完全な正しい例 ---\n" +
-               "/give @p diamond_sword[custom_name='{\"text\":\"最強の剣\",\"italic\":false}',unbreakable={},enchantments={levels:{sharpness:255,smite:255,bane_of_arthropods:255,fire_aspect:255,knockback:255,looting:255,sweeping_edge:255,unbreaking:255,mending:1}}] 1\n\n" +
+               "/give @p diamond_sword[custom_name='{\"text\":\"最強の剣\",\"italic\":false}',unbreakable={},enchantments={sharpness:255,smite:255,bane_of_arthropods:255,fire_aspect:255,knockback:255,looting:255,sweeping_edge:255,unbreaking:255,mending:1}] 1\n\n" +
                "--- ネザライト全身装備の例 ---\n" +
-               "COMMAND: /give @p netherite_helmet[custom_name='{\"text\":\"最強のヘルメット\",\"italic\":false}',unbreakable={},enchantments={levels:{protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,respiration:3,aqua_affinity:1,thorns:255,unbreaking:255,mending:1}}] 1\n" +
-               "COMMAND: /give @p netherite_chestplate[custom_name='{\"text\":\"最強のチェストプレート\",\"italic\":false}',unbreakable={},enchantments={levels:{protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,thorns:255,unbreaking:255,mending:1}}] 1\n" +
-               "COMMAND: /give @p netherite_leggings[custom_name='{\"text\":\"最強のレギンス\",\"italic\":false}',unbreakable={},enchantments={levels:{protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,thorns:255,swift_sneak:3,unbreaking:255,mending:1}}] 1\n" +
-               "COMMAND: /give @p netherite_boots[custom_name='{\"text\":\"最強のブーツ\",\"italic\":false}',unbreakable={},enchantments={levels:{protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,feather_falling:255,depth_strider:3,soul_speed:3,thorns:255,unbreaking:255,mending:1}}] 1\n\n" +
+               "COMMAND: /give @p netherite_helmet[custom_name='{\"text\":\"最強のヘルメット\",\"italic\":false}',unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,respiration:3,aqua_affinity:1,thorns:255,unbreaking:255,mending:1}] 1\n" +
+               "COMMAND: /give @p netherite_chestplate[custom_name='{\"text\":\"最強のチェストプレート\",\"italic\":false}',unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,thorns:255,unbreaking:255,mending:1}] 1\n" +
+               "COMMAND: /give @p netherite_leggings[custom_name='{\"text\":\"最強のレギンス\",\"italic\":false}',unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,thorns:255,swift_sneak:3,unbreaking:255,mending:1}] 1\n" +
+               "COMMAND: /give @p netherite_boots[custom_name='{\"text\":\"最強のブーツ\",\"italic\":false}',unbreakable={},enchantments={protection:255,fire_protection:255,blast_protection:255,projectile_protection:255,feather_falling:255,depth_strider:3,soul_speed:3,thorns:255,unbreaking:255,mending:1}] 1\n\n" +
                "=== エンチャントID一覧 (全てsnake_case) ===\n" +
                "剣: sharpness, smite, bane_of_arthropods, fire_aspect, knockback, looting, sweeping_edge\n" +
                "弓: power, punch, flame, infinity\n" +
@@ -1775,8 +1774,8 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "【重要なルール - 必ず全て守ること】\n" +
                "- コマンドは必ず / で始める\n" +
                "- 全てのIDはsnake_case必須（diamond_sword, fire_aspect）絶対に単語を繋げない\n" +
-               "- enchantmentsは必ず levels: キーを含める: enchantments={levels:{sharpness:255}}\n" +
-               "- SNBTのキーにダブルクォートは付けない: {levels:{sharpness:255}} が正しい\n" +
+               "- enchantmentsはフラット形式: enchantments={sharpness:255} (levels: は使わない)\n" +
+               "- SNBTのキーにダブルクォートは付けない: {sharpness:255} が正しい\n" +
                "- custom_nameはJSON text component形式: '{\"text\":\"名前\",\"italic\":false}'\n" +
                "- 「最強」と言われたらエンチャントレベル255で全関連エンチャント付与\n" +
                "- 対象が指定されなければ @p を使用\n" +
