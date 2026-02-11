@@ -1805,7 +1805,8 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                "- enchantmentsはフラット形式: enchantments={sharpness:255} (levels: は使わない)\n" +
                "- SNBTのキーにダブルクォートは付けない: {sharpness:255} が正しい\n" +
                "- custom_nameはSNBT直接形式: custom_name={text:'名前',italic:false}\n" +
-               "- 「最強」と言われたらエンチャントレベル255で全関連エンチャント付与\n" +
+               "- ユーザーがエンチャントの種類やレベルを具体的に指定した場合は、その指定に正確に従う\n" +
+               "- 「最強」等の曖昧な指定の場合のみレベル255で全関連エンチャント付与\n" +
                "- 対象が指定されなければ @p を使用\n" +
                "- 座標が指定されなければ ~ ~ ~ を使用\n" +
                "- 実行不可能なリクエストの場合、最も近い実現可能なコマンドを生成し、制限を説明\n" +
