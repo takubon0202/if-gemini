@@ -1,4 +1,4 @@
-# if-Gemini v2.1.3 - Minecraft AI 多機能プラグイン
+# if-Gemini v2.1.4 - Minecraft AI 多機能プラグイン
 
 MinecraftサーバーでGoogle Gemini AIを使った**相談・Web検索・コマンド生成・画像生成**を提供するSpigotプラグインです。
 
@@ -341,6 +341,11 @@ JARファイルは `target/` に生成され、`builds/` フォルダにもコ�
 ---
 
 ## 変更履歴
+
+### v2.1.4
+- enchantments構文をMC 1.21.5+フラット形式に修正（`levels:` キー廃止対応）
+- [実行]ボタンがAI対話にならないようMCバニラコマンドをホワイトリスト許可
+- `fixCommandSyntax`で`levels:`ラッパーを自動除去するよう修正
 
 ### v2.1.3
 - AI生成コマンドの自動構文修正機能を追加（約80パターンのsnake_case自動変換）
