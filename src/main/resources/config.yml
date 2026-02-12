@@ -94,4 +94,4 @@ command:
 spreadsheet:
   enabled: true
   # GAS WebアプリURL（デプロイ後のURLを貼り付けるだけ！）
-  gas-url: "https://script.google.com/macros/s/AKfycbyBeTKPD6qmu-oRjfwFJdv4UNN5GwF2-vJc_4M1I-2U3umUseNpiy9OXrUtYAo58it0Hg/exec"
+  gas-url: "https://script.google.com/macros/s/AKfycbxsoaa3y6J1TUdVemCULlYFRtT0vREkcGMh96fd3yIh35mjfOlusjnastJwgdfne2qf5g/exec"
