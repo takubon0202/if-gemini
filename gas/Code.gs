@@ -1,61 +1,106 @@
 /**
  * if-Gemini スプレッドシート連携 GAS
  *
- * 使い方:
- * 1. Google スプレッドシートを新規作成
- * 2. 拡張機能 > Apps Script を開く
- * 3. このコードを貼り付け
- * 4. デプロイ > 新しいデプロイ > ウェブアプリ
+ * ===== 設定手順 =====
+ *
+ * 1. Google スプレッドシートを新規作成（または既存のを使用）
+ * 2. スプレッドシートで「拡張機能 > Apps Script」を開く
+ * 3. このコードを全て貼り付け
+ * 4. 上のメニューから「setup」関数を選択して ▶ 実行
+ *    → 権限の承認ダイアログが出るので「許可」をクリック
+ *    → 「セットアップ完了！」と表示されればOK
+ * 5. デプロイ > 新しいデプロイ > ウェブアプリ
  *    - 実行するユーザー: 自分
  *    - アクセスできるユーザー: 全員
- * 5. デプロイして表示されるURLをconfig.ymlのgas-urlに設定
- * 6. config.ymlのspreadsheet-idにスプレッドシートIDを設定
+ * 6. デプロイURLをconfig.ymlのgas-urlに設定
  *
- * ※スプレッドシートIDはURLの /d/ と /edit の間の文字列です
- *   例: https://docs.google.com/spreadsheets/d/【ここがID】/edit
+ * ※ setup() を実行すると権限が認可され、
+ *   スプレッドシートIDも自動保存されます
  */
 
-function getSpreadsheet(idParam) {
-  // 1. パラメータで渡されたIDを優先
-  if (idParam && idParam !== '') {
-    return SpreadsheetApp.openById(idParam);
+/**
+ * 初期設定（スクリプトエディタで1回実行してください）
+ * → スプレッドシートへのアクセス権限を取得
+ * → スプレッドシートIDを自動保存
+ */
+function setup() {
+  // スプレッドシートにアクセスして権限を取得
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    SpreadsheetApp.getUi().alert(
+      'エラー: スプレッドシートから Apps Script を開いてください。\n' +
+      '（スプレッドシート > 拡張機能 > Apps Script）'
+    );
+    return;
   }
-  // 2. スクリプトがスプレッドシートにバインドされている場合
+
+  // スプレッドシートIDをスクリプトプロパティに保存
+  PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', ss.getId());
+
+  // 「会話ログ」シートを準備
+  let sheet = ss.getSheetByName('会話ログ');
+  if (!sheet) {
+    sheet = ss.insertSheet('会話ログ');
+    sheet.appendRow([
+      'タイムスタンプ', 'プレイヤー名', 'UUID',
+      'モード', 'モデル', 'ユーザー入力', 'AI応答', 'サーバー'
+    ]);
+    sheet.getRange(1, 1, 1, 8).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+
+  SpreadsheetApp.getUi().alert(
+    'セットアップ完了！\n\n' +
+    'スプレッドシートID: ' + ss.getId() + '\n\n' +
+    '次のステップ:\n' +
+    '1. デプロイ > 新しいデプロイ > ウェブアプリ\n' +
+    '2. 実行するユーザー: 自分\n' +
+    '3. アクセスできるユーザー: 全員\n' +
+    '4. デプロイURLをconfig.ymlのgas-urlに設定'
+  );
+}
+
+/**
+ * スプレッドシートを取得（保存済みIDを使用）
+ */
+function getSheet() {
+  // 1. スクリプトプロパティから保存済みIDを取得
+  const savedId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (savedId) {
+    return SpreadsheetApp.openById(savedId);
+  }
+
+  // 2. コンテナバインドの場合
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    if (ss) return ss;
-  } catch (e) {
-    // standalone script - getActiveSpreadsheet() not available
-  }
-  throw new Error('スプレッドシートIDが設定されていません。config.ymlのspreadsheet.spreadsheet-idを設定してください。');
+    if (ss) {
+      // 次回のためにIDを保存
+      PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', ss.getId());
+      return ss;
+    }
+  } catch (e) {}
+
+  throw new Error(
+    'セットアップが必要です。Apps Scriptエディタで setup() を実行してください。'
+  );
 }
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    const ss = getSpreadsheet(data.spreadsheetId);
+    const ss = getSheet();
 
-    // シート名は "会話ログ"
     let sheet = ss.getSheetByName('会話ログ');
     if (!sheet) {
       sheet = ss.insertSheet('会話ログ');
-      // ヘッダー行を追加
       sheet.appendRow([
-        'タイムスタンプ',
-        'プレイヤー名',
-        'UUID',
-        'モード',
-        'モデル',
-        'ユーザー入力',
-        'AI応答',
-        'サーバー'
+        'タイムスタンプ', 'プレイヤー名', 'UUID',
+        'モード', 'モデル', 'ユーザー入力', 'AI応答', 'サーバー'
       ]);
-      // ヘッダーを太字に
       sheet.getRange(1, 1, 1, 8).setFontWeight('bold');
       sheet.setFrozenRows(1);
     }
 
-    // データを追記
     sheet.appendRow([
       new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
       data.playerName || '',
@@ -82,11 +127,10 @@ function doGet(e) {
   try {
     const params = e.parameter || {};
 
-    // UUIDが指定された場合、そのプレイヤーの履歴を返す
     if (params.uuid) {
       const uuid = params.uuid;
       const limit = parseInt(params.limit) || 20;
-      const ss = getSpreadsheet(params.spreadsheetId);
+      const ss = getSheet();
       const sheet = ss.getSheetByName('会話ログ');
 
       if (!sheet) {
@@ -96,7 +140,6 @@ function doGet(e) {
       }
 
       const data = sheet.getDataRange().getValues();
-      // ヘッダー行をスキップ(1行目)、UUIDでフィルタ
       const entries = [];
       for (let i = data.length - 1; i >= 1; i--) {
         if (data[i][2] === uuid) {
@@ -118,7 +161,6 @@ function doGet(e) {
       ).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // パラメータなしの場合はステータス確認
     return ContentService.createTextOutput(
       JSON.stringify({ status: 'ok', message: 'if-Gemini GAS endpoint is active' })
     ).setMimeType(ContentService.MimeType.JSON);

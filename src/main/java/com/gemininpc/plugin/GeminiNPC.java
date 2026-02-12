@@ -108,7 +108,6 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     // Spreadsheet logging
     private boolean spreadsheetEnabled;
     private String gasUrl;
-    private String spreadsheetId;
 
     private final Map<UUID, JsonArray> conversationHistories = new ConcurrentHashMap<>();
     private final Map<UUID, SessionMode> playerSessionMode = new ConcurrentHashMap<>();
@@ -239,49 +238,20 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             imageHosting = "catbox";
         }
 
-        // Spreadsheet logging settings
+        // Spreadsheet logging settings (GAS側でスプレッドシートIDを管理)
         spreadsheetEnabled = config.getBoolean("spreadsheet.enabled", false);
         gasUrl = config.getString("spreadsheet.gas-url", "");
-        // spreadsheet-url からIDを自動抽出（旧spreadsheet-idも後方互換でサポート）
-        String spreadsheetUrl = config.getString("spreadsheet.spreadsheet-url", "");
-        String legacyId = config.getString("spreadsheet.spreadsheet-id", "");
-        spreadsheetId = extractSpreadsheetId(spreadsheetUrl, legacyId);
         if (spreadsheetEnabled) {
             if (gasUrl.isEmpty() || gasUrl.contains("YOUR_")) {
                 getLogger().warning("[if-Gemini] spreadsheet.gas-url が未設定です。スプレッドシート連携を無効化しました。");
                 spreadsheetEnabled = false;
-            } else if (spreadsheetId.isEmpty()) {
-                getLogger().warning("[if-Gemini] spreadsheet.spreadsheet-url が未設定です。スプレッドシート連携を無効化しました。");
-                spreadsheetEnabled = false;
             }
         }
         if (spreadsheetEnabled) {
-            getLogger().info("[if-Gemini] Spreadsheet logging enabled (ID: " + spreadsheetId.substring(0, Math.min(8, spreadsheetId.length())) + "...)");
+            getLogger().info("[if-Gemini] Spreadsheet logging enabled: " + gasUrl);
         }
 
         getLogger().info("Model configured: " + defaultModelName);
-    }
-
-    private String extractSpreadsheetId(String url, String legacyId) {
-        // URLからスプレッドシートIDを自動抽出
-        // 対応形式: https://docs.google.com/spreadsheets/d/XXXXX/edit...
-        if (url != null && !url.isEmpty() && !url.contains("YOUR_")) {
-            java.util.regex.Matcher matcher = java.util.regex.Pattern
-                .compile("/spreadsheets/d/([a-zA-Z0-9_-]+)")
-                .matcher(url);
-            if (matcher.find()) {
-                return matcher.group(1);
-            }
-            // URLではなくIDが直接入力された場合（英数字・ハイフン・アンダースコアのみ）
-            if (url.matches("[a-zA-Z0-9_-]+")) {
-                return url;
-            }
-        }
-        // 旧設定 spreadsheet-id からの後方互換
-        if (legacyId != null && !legacyId.isEmpty() && !legacyId.contains("YOUR_")) {
-            return legacyId;
-        }
-        return "";
     }
 
     private String normalizeModelName(String modelName) {
@@ -3784,7 +3754,6 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
                 // Build JSON payload
                 com.google.gson.JsonObject payload = new com.google.gson.JsonObject();
-                payload.addProperty("spreadsheetId", spreadsheetId);
                 payload.addProperty("playerName", player.getName());
                 payload.addProperty("uuid", player.getUniqueId().toString());
                 payload.addProperty("mode", mode);
@@ -3833,7 +3802,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     // ==================== Spreadsheet History Viewer ====================
 
     private void showSpreadsheetHistory(Player player, int page) {
-        if (!spreadsheetEnabled || gasUrl == null || gasUrl.isEmpty() || gasUrl.equals("YOUR_GAS_WEB_APP_URL_HERE")) {
+        if (!spreadsheetEnabled || gasUrl == null || gasUrl.isEmpty() || gasUrl.contains("YOUR_")) {
             player.sendMessage("");
             player.sendMessage(ChatColor.RED + "スプレッドシート連携が設定されていません。");
             player.sendMessage(ChatColor.GRAY + "config.yml の spreadsheet セクションを設定してください。");
@@ -3847,11 +3816,9 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             try {
-                // GAS doGet にUUID・スプレッドシートIDパラメータを付けてリクエスト
+                // GAS doGet にUUIDパラメータを付けてリクエスト
                 String uuid = player.getUniqueId().toString();
-                String fetchUrl = gasUrl + "?uuid=" + java.net.URLEncoder.encode(uuid, "UTF-8")
-                    + "&spreadsheetId=" + java.net.URLEncoder.encode(spreadsheetId, "UTF-8")
-                    + "&limit=100";
+                String fetchUrl = gasUrl + "?uuid=" + java.net.URLEncoder.encode(uuid, "UTF-8") + "&limit=100";
 
                 java.net.URL url = new java.net.URL(fetchUrl);
                 java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
