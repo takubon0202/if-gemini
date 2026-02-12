@@ -2719,7 +2719,20 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         userPart.add("parts", userParts);
         contents.add(userPart);
 
-        WebSearchResult result = callGeminiAPIWithSearch(contents, playerModel);
+        // リトライ: 503/429時に最大2回リトライ + Flashフォールバック
+        WebSearchResult searchResult = null;
+        String[] searchModels = {playerModel, playerModel, MODEL_FLASH};
+        int[] searchDelays = {0, 3000, 1000};
+        for (int attempt = 0; attempt < searchModels.length; attempt++) {
+            if (attempt == 2 && MODEL_FLASH.equals(playerModel)) break;
+            if (searchDelays[attempt] > 0) {
+                try { Thread.sleep(searchDelays[attempt]); } catch (InterruptedException ie) { break; }
+                getLogger().info("[if-Gemini] Search retry attempt " + attempt + " with: " + searchModels[attempt]);
+            }
+            searchResult = callGeminiAPIWithSearch(contents, searchModels[attempt]);
+            if (searchResult != null) break;
+        }
+        final WebSearchResult result = searchResult;
 
         Bukkit.getScheduler().runTask(this, () -> {
             player.sendMessage("");
@@ -4209,6 +4222,12 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                     }
                 }
                 getLogger().severe("Gemini API Error: " + responseCode + " - " + errorResponse.toString());
+
+                // 503/429 はリトライ可能
+                if (responseCode == 503 || responseCode == 429) {
+                    connection.disconnect();
+                    return null; // リトライはcallGeminiAPIWithSearchRetryで処理
+                }
             }
 
             connection.disconnect();
@@ -4222,6 +4241,39 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     }
 
     private String callGeminiAPIInternal(JsonArray conversationHistory, String modelName, String sysPrompt) {
+        // リトライ: 503/429エラー時に最大2回リトライ、最後にFlashフォールバック
+        String[] modelsToTry = {modelName, modelName, MODEL_FLASH};
+        int[] retryDelays = {0, 3000, 1000};
+
+        for (int attempt = 0; attempt < modelsToTry.length; attempt++) {
+            String currentModel = modelsToTry[attempt];
+            // 最後のフォールバックは元モデルと違う場合のみ
+            if (attempt == 2 && MODEL_FLASH.equals(modelName)) break;
+
+            if (retryDelays[attempt] > 0) {
+                try { Thread.sleep(retryDelays[attempt]); } catch (InterruptedException ie) { break; }
+                getLogger().info("[if-Gemini] Retry attempt " + attempt + " with model: " + currentModel);
+            }
+
+            try {
+                String result = callGeminiAPISingle(conversationHistory, currentModel, sysPrompt);
+                if (result != null) return result;
+            } catch (GeminiRetryableException e) {
+                getLogger().warning("[if-Gemini] " + e.getMessage() + " (attempt " + (attempt + 1) + ")");
+                continue;
+            } catch (Exception e) {
+                getLogger().severe("[if-Gemini] API error: " + e.getMessage());
+                break;
+            }
+        }
+        return null;
+    }
+
+    private static class GeminiRetryableException extends Exception {
+        GeminiRetryableException(String message) { super(message); }
+    }
+
+    private String callGeminiAPISingle(JsonArray conversationHistory, String modelName, String sysPrompt) throws GeminiRetryableException {
         try {
             String actualModel = getActualModelName(modelName);
             String thinkingLevel = getThinkingLevel(modelName);
@@ -4232,7 +4284,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             connection.setRequestProperty("Content-Type", "application/json");
             connection.setDoOutput(true);
             connection.setConnectTimeout(30000);
-            connection.setReadTimeout(120000);  // Increased timeout for thinking models
+            connection.setReadTimeout(120000);
 
             JsonObject requestBody = new JsonObject();
 
@@ -4252,7 +4304,6 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             generationConfig.addProperty("topP", 0.95);
             generationConfig.addProperty("maxOutputTokens", 65536);
 
-            // Add thinking config only for models that support it (Flash Thinking, Pro)
             if (supportsThinking(modelName)) {
                 JsonObject thinkingConfig = new JsonObject();
                 thinkingConfig.addProperty("thinkingLevel", thinkingLevel);
@@ -4305,7 +4356,6 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                             JsonObject content = candidate.getAsJsonObject("content");
                             if (content.has("parts")) {
                                 JsonArray parts = content.getAsJsonArray("parts");
-                                // Concatenate all text parts (important for thinking mode which may return multiple parts)
                                 StringBuilder textBuilder = new StringBuilder();
                                 for (int i = 0; i < parts.size(); i++) {
                                     JsonObject part = parts.get(i).getAsJsonObject();
@@ -4335,10 +4385,18 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                     }
                 }
                 getLogger().severe("Gemini API Error: " + responseCode + " - " + errorResponse.toString());
+
+                // 503 (高負荷) / 429 (レート制限) はリトライ可能
+                if (responseCode == 503 || responseCode == 429) {
+                    connection.disconnect();
+                    throw new GeminiRetryableException("API " + responseCode + ": サーバー混雑中");
+                }
             }
 
             connection.disconnect();
 
+        } catch (GeminiRetryableException e) {
+            throw e;
         } catch (Exception e) {
             getLogger().severe("Error calling Gemini API: " + e.getMessage());
             e.printStackTrace();
