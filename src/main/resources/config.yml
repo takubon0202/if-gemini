@@ -84,11 +84,18 @@ command:
   # model: "gemini-3-pro-preview"
 
 # Google スプレッドシート連携設定
+# 設定手順:
+#   1. Google スプレッドシートを新規作成
+#   2. スプレッドシートのURLをspreadsheet-urlにそのまま貼り付け
+#   3. スプレッドシートで 拡張機能 > Apps Script を開く
+#   4. gas/Code.gs のコードを貼り付けてデプロイ（ウェブアプリ）
+#   5. デプロイURLをgas-urlに貼り付け
+#   6. enabled を true に変更
 spreadsheet:
-  # 有効/無効
   enabled: true
-  # GAS WebアプリのURL（デプロイ後のURLを設定）
-  gas-url: "https://script.google.com/macros/s/AKfycbyBeTKPD6qmu-oRjfwFJdv4UNN5GwF2-vJc_4M1I-2U3umUseNpiy9OXrUtYAo58it0Hg/exec"
-  # スプレッドシートID（URLの /d/ と /edit の間の文字列）
-  # 例: https://docs.google.com/spreadsheets/d/【ここがID】/edit
-  spreadsheet-id: "YOUR_SPREADSHEET_ID_HERE"
+  # スプレッドシートURL（そのまま貼り付けてください）
+  # 例: https://docs.google.com/spreadsheets/d/1A2B3C4D5E/edit
+  spreadsheet-url: "YOUR_SPREADSHEET_URL_HERE"
+  # GAS WebアプリURL（デプロイ後のURLを貼り付け）
+  # 例: https://script.google.com/macros/s/xxxxx/exec
+  gas-url: "YOUR_GAS_URL_HERE"

@@ -241,21 +241,47 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
         // Spreadsheet logging settings
         spreadsheetEnabled = config.getBoolean("spreadsheet.enabled", false);
-        gasUrl = config.getString("spreadsheet.gas-url", "YOUR_GAS_WEB_APP_URL_HERE");
-        spreadsheetId = config.getString("spreadsheet.spreadsheet-id", "YOUR_SPREADSHEET_ID_HERE");
-        if (spreadsheetEnabled && gasUrl.equals("YOUR_GAS_WEB_APP_URL_HERE")) {
-            getLogger().warning("Spreadsheet logging enabled but GAS URL not set. Disabling.");
-            spreadsheetEnabled = false;
-        }
-        if (spreadsheetEnabled && spreadsheetId.equals("YOUR_SPREADSHEET_ID_HERE")) {
-            getLogger().warning("Spreadsheet logging enabled but Spreadsheet ID not set. Disabling.");
-            spreadsheetEnabled = false;
+        gasUrl = config.getString("spreadsheet.gas-url", "");
+        // spreadsheet-url からIDを自動抽出（旧spreadsheet-idも後方互換でサポート）
+        String spreadsheetUrl = config.getString("spreadsheet.spreadsheet-url", "");
+        String legacyId = config.getString("spreadsheet.spreadsheet-id", "");
+        spreadsheetId = extractSpreadsheetId(spreadsheetUrl, legacyId);
+        if (spreadsheetEnabled) {
+            if (gasUrl.isEmpty() || gasUrl.contains("YOUR_")) {
+                getLogger().warning("[if-Gemini] spreadsheet.gas-url が未設定です。スプレッドシート連携を無効化しました。");
+                spreadsheetEnabled = false;
+            } else if (spreadsheetId.isEmpty()) {
+                getLogger().warning("[if-Gemini] spreadsheet.spreadsheet-url が未設定です。スプレッドシート連携を無効化しました。");
+                spreadsheetEnabled = false;
+            }
         }
         if (spreadsheetEnabled) {
-            getLogger().info("Spreadsheet logging enabled: " + gasUrl);
+            getLogger().info("[if-Gemini] Spreadsheet logging enabled (ID: " + spreadsheetId.substring(0, Math.min(8, spreadsheetId.length())) + "...)");
         }
 
         getLogger().info("Model configured: " + defaultModelName);
+    }
+
+    private String extractSpreadsheetId(String url, String legacyId) {
+        // URLからスプレッドシートIDを自動抽出
+        // 対応形式: https://docs.google.com/spreadsheets/d/XXXXX/edit...
+        if (url != null && !url.isEmpty() && !url.contains("YOUR_")) {
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("/spreadsheets/d/([a-zA-Z0-9_-]+)")
+                .matcher(url);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+            // URLではなくIDが直接入力された場合（英数字・ハイフン・アンダースコアのみ）
+            if (url.matches("[a-zA-Z0-9_-]+")) {
+                return url;
+            }
+        }
+        // 旧設定 spreadsheet-id からの後方互換
+        if (legacyId != null && !legacyId.isEmpty() && !legacyId.contains("YOUR_")) {
+            return legacyId;
+        }
+        return "";
     }
 
     private String normalizeModelName(String modelName) {
