@@ -85,6 +85,6 @@ command:
 # Google スプレッドシート連携設定
 spreadsheet:
   # 有効/無効
-  enabled: false
+  enabled: true
   # GAS WebアプリのURL（デプロイ後のURLを設定）
-  gas-url: "YOUR_GAS_WEB_APP_URL_HERE"
+  gas-url: "https://script.google.com/macros/s/AKfycbyBeTKPD6qmu-oRjfwFJdv4UNN5GwF2-vJc_4M1I-2U3umUseNpiy9OXrUtYAo58it0Hg/exec"
