@@ -89,3 +89,6 @@ spreadsheet:
   enabled: true
   # GAS WebアプリのURL（デプロイ後のURLを設定）
   gas-url: "https://script.google.com/macros/s/AKfycbyBeTKPD6qmu-oRjfwFJdv4UNN5GwF2-vJc_4M1I-2U3umUseNpiy9OXrUtYAo58it0Hg/exec"
+  # スプレッドシートID（URLの /d/ と /edit の間の文字列）
+  # 例: https://docs.google.com/spreadsheets/d/【ここがID】/edit
+  spreadsheet-id: "YOUR_SPREADSHEET_ID_HERE"

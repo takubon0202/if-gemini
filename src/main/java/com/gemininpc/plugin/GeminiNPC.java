@@ -108,6 +108,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     // Spreadsheet logging
     private boolean spreadsheetEnabled;
     private String gasUrl;
+    private String spreadsheetId;
 
     private final Map<UUID, JsonArray> conversationHistories = new ConcurrentHashMap<>();
     private final Map<UUID, SessionMode> playerSessionMode = new ConcurrentHashMap<>();
@@ -241,8 +242,13 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         // Spreadsheet logging settings
         spreadsheetEnabled = config.getBoolean("spreadsheet.enabled", false);
         gasUrl = config.getString("spreadsheet.gas-url", "YOUR_GAS_WEB_APP_URL_HERE");
+        spreadsheetId = config.getString("spreadsheet.spreadsheet-id", "YOUR_SPREADSHEET_ID_HERE");
         if (spreadsheetEnabled && gasUrl.equals("YOUR_GAS_WEB_APP_URL_HERE")) {
             getLogger().warning("Spreadsheet logging enabled but GAS URL not set. Disabling.");
+            spreadsheetEnabled = false;
+        }
+        if (spreadsheetEnabled && spreadsheetId.equals("YOUR_SPREADSHEET_ID_HERE")) {
+            getLogger().warning("Spreadsheet logging enabled but Spreadsheet ID not set. Disabling.");
             spreadsheetEnabled = false;
         }
         if (spreadsheetEnabled) {
@@ -3739,6 +3745,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
                 // Build JSON payload
                 com.google.gson.JsonObject payload = new com.google.gson.JsonObject();
+                payload.addProperty("spreadsheetId", spreadsheetId);
                 payload.addProperty("playerName", player.getName());
                 payload.addProperty("uuid", player.getUniqueId().toString());
                 payload.addProperty("mode", mode);
@@ -3801,9 +3808,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
 
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             try {
-                // GAS doGet にUUIDパラメータを付けてリクエスト
+                // GAS doGet にUUID・スプレッドシートIDパラメータを付けてリクエスト
                 String uuid = player.getUniqueId().toString();
-                String fetchUrl = gasUrl + "?uuid=" + java.net.URLEncoder.encode(uuid, "UTF-8") + "&limit=100";
+                String fetchUrl = gasUrl + "?uuid=" + java.net.URLEncoder.encode(uuid, "UTF-8")
+                    + "&spreadsheetId=" + java.net.URLEncoder.encode(spreadsheetId, "UTF-8")
+                    + "&limit=100";
 
                 java.net.URL url = new java.net.URL(fetchUrl);
                 java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();

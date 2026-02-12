@@ -5,20 +5,35 @@
  * 1. Google スプレッドシートを新規作成
  * 2. 拡張機能 > Apps Script を開く
  * 3. このコードを貼り付け
- * 4. SPREADSHEET_ID を自分のスプレッドシートのIDに変更
- * 5. デプロイ > 新しいデプロイ > ウェブアプリ
+ * 4. デプロイ > 新しいデプロイ > ウェブアプリ
  *    - 実行するユーザー: 自分
  *    - アクセスできるユーザー: 全員
- * 6. デプロイして表示されるURLをconfig.ymlのgas-urlに設定
+ * 5. デプロイして表示されるURLをconfig.ymlのgas-urlに設定
+ * 6. config.ymlのspreadsheet-idにスプレッドシートIDを設定
+ *
+ * ※スプレッドシートIDはURLの /d/ と /edit の間の文字列です
+ *   例: https://docs.google.com/spreadsheets/d/【ここがID】/edit
  */
 
-// スプレッドシートIDを設定してください
-const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
+function getSpreadsheet(idParam) {
+  // 1. パラメータで渡されたIDを優先
+  if (idParam && idParam !== '') {
+    return SpreadsheetApp.openById(idParam);
+  }
+  // 2. スクリプトがスプレッドシートにバインドされている場合
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss) return ss;
+  } catch (e) {
+    // standalone script - getActiveSpreadsheet() not available
+  }
+  throw new Error('スプレッドシートIDが設定されていません。config.ymlのspreadsheet.spreadsheet-idを設定してください。');
+}
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = getSpreadsheet(data.spreadsheetId);
 
     // シート名は "会話ログ"
     let sheet = ss.getSheetByName('会話ログ');
@@ -71,7 +86,7 @@ function doGet(e) {
     if (params.uuid) {
       const uuid = params.uuid;
       const limit = parseInt(params.limit) || 20;
-      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const ss = getSpreadsheet(params.spreadsheetId);
       const sheet = ss.getSheetByName('会話ログ');
 
       if (!sheet) {
