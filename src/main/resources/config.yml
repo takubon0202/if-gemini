@@ -81,3 +81,10 @@ command:
   # コマンド生成に使用するモデル（未設定時はプレイヤーの選択モデルを使用）
   # pro推奨（複雑なコマンド生成に適している）
   # model: "gemini-3-pro-preview"
+
+# Google スプレッドシート連携設定
+spreadsheet:
+  # 有効/無効
+  enabled: false
+  # GAS WebアプリのURL（デプロイ後のURLを設定）
+  gas-url: "YOUR_GAS_WEB_APP_URL_HERE"

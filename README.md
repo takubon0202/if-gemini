@@ -1,4 +1,4 @@
-# if-Gemini v2.1.7 - Minecraft AI 多機能プラグイン
+# if-Gemini v2.1.8 - Minecraft AI 多機能プラグイン
 
 MinecraftサーバーでGoogle Gemini AIを使った**相談・Web検索・コマンド生成・画像生成**を提供するSpigotプラグインです。
 
@@ -341,6 +341,13 @@ JARファイルは `target/` に生成され、`builds/` フォルダにもコ�
 ---
 
 ## 変更履歴
+
+### v2.1.8
+- **Google スプレッドシート連携**を追加（GAS WebApp経由）
+- 相談・検索・コマンド生成の会話履歴を自動記録
+- 記録項目: プレイヤー名, UUID, モード, モデル, ユーザー入力, AI応答, タイムスタンプ
+- config.ymlで有効/無効の切り替え可能
+- 槍のsnake_case自動修正を追加（`netheritespear` → `netherite_spear`）
 
 ### v2.1.7
 - MC 1.21.11の槍（Spear）7種 + Lungeエンチャントを追加

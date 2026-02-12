@@ -105,6 +105,10 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
     private String defaultAspectRatio;
     private String defaultResolution;
 
+    // Spreadsheet logging
+    private boolean spreadsheetEnabled;
+    private String gasUrl;
+
     private final Map<UUID, JsonArray> conversationHistories = new ConcurrentHashMap<>();
     private final Map<UUID, SessionMode> playerSessionMode = new ConcurrentHashMap<>();
     private final Map<UUID, String> playerModels = new ConcurrentHashMap<>();
@@ -232,6 +236,17 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         if (imageHosting.equals("imgbb") && imgbbApiKey.equals("YOUR_IMGBB_API_KEY_HERE")) {
             getLogger().warning("ImgBB API key not set. Falling back to Catbox for image hosting.");
             imageHosting = "catbox";
+        }
+
+        // Spreadsheet logging settings
+        spreadsheetEnabled = config.getBoolean("spreadsheet.enabled", false);
+        gasUrl = config.getString("spreadsheet.gas-url", "YOUR_GAS_WEB_APP_URL_HERE");
+        if (spreadsheetEnabled && gasUrl.equals("YOUR_GAS_WEB_APP_URL_HERE")) {
+            getLogger().warning("Spreadsheet logging enabled but GAS URL not set. Disabling.");
+            spreadsheetEnabled = false;
+        }
+        if (spreadsheetEnabled) {
+            getLogger().info("Spreadsheet logging enabled: " + gasUrl);
         }
 
         getLogger().info("Model configured: " + defaultModelName);
@@ -1555,6 +1570,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
 
         sendModeFooter(player);
+
+        // Log to spreadsheet
+        String cmdList = String.join("\n", commands);
+        logToSpreadsheet(player, "コマンド生成", getPlayerModel(player.getUniqueId()),
+            originalRequest, cmdList + (explanation != null ? "\n" + explanation : ""));
     }
 
     private String fixCommandSyntax(String command) {
@@ -1597,6 +1617,14 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         command = command.replace("nametag", "name_tag");
         command = command.replace("lightningbolt", "lightning_bolt");
         command = command.replace("irongolem", "iron_golem");
+        // Fix spear IDs (1.21.11)
+        command = command.replace("woodenspear", "wooden_spear");
+        command = command.replace("stonespear", "stone_spear");
+        command = command.replace("copperspear", "copper_spear");
+        command = command.replace("ironspear", "iron_spear");
+        command = command.replace("goldenspear", "golden_spear");
+        command = command.replace("diamondspear", "diamond_spear");
+        command = command.replace("netheritespear", "netherite_spear");
 
         // Fix component names (missing underscores)
         command = command.replace("customname=", "custom_name=");
@@ -2605,6 +2633,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 player.sendMessage("");
                 sendModeFooter(player);
             });
+            logToSpreadsheet(player, "相談", getPlayerModel(playerId), userMessage, finalResponse);
         } else {
             Bukkit.getScheduler().runTask(this, () -> {
                 player.sendMessage(ChatColor.RED + "[" + npcName + "] " +
@@ -2667,6 +2696,10 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             player.sendMessage("");
             sendModeFooter(player);
         });
+
+        // Log to spreadsheet
+        String resultText = (result != null && result.text != null) ? stripMarkdown(result.text) : "検索失敗";
+        logToSpreadsheet(player, "検索", playerModel, query, resultText);
     }
 
     private List<String> wrapText(String text, int maxLength) {
@@ -3656,6 +3689,70 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         line.addExtra(createClickableButton("[ライブラリに戻る]", "/gemini library", "クリックでライブラリに戻る", net.md_5.bungee.api.ChatColor.YELLOW));
         player.spigot().sendMessage(line);
         player.sendMessage("");
+    }
+
+    // ==================== Spreadsheet Logging ====================
+
+    private void logToSpreadsheet(Player player, String mode, String model, String userInput, String aiResponse) {
+        if (!spreadsheetEnabled || gasUrl == null || gasUrl.isEmpty()) return;
+
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            try {
+                java.net.URL url = new java.net.URL(gasUrl);
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(10000);
+                // Follow redirects (GAS always redirects)
+                conn.setInstanceFollowRedirects(false);
+
+                // Build JSON payload
+                com.google.gson.JsonObject payload = new com.google.gson.JsonObject();
+                payload.addProperty("playerName", player.getName());
+                payload.addProperty("uuid", player.getUniqueId().toString());
+                payload.addProperty("mode", mode);
+                payload.addProperty("model", model);
+                payload.addProperty("userInput", userInput != null ? userInput : "");
+                // Truncate AI response to prevent payload too large
+                String truncatedResponse = aiResponse != null ?
+                    (aiResponse.length() > 5000 ? aiResponse.substring(0, 5000) + "..." : aiResponse) : "";
+                payload.addProperty("aiResponse", truncatedResponse);
+                payload.addProperty("server", getServer().getName());
+
+                byte[] postData = payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                conn.setRequestProperty("Content-Length", String.valueOf(postData.length));
+
+                try (java.io.OutputStream os = conn.getOutputStream()) {
+                    os.write(postData);
+                }
+
+                int responseCode = conn.getResponseCode();
+                // GAS returns 302 redirect on POST, follow it
+                if (responseCode == 302 || responseCode == 301) {
+                    String redirectUrl = conn.getHeaderField("Location");
+                    if (redirectUrl != null) {
+                        java.net.URL redirect = new java.net.URL(redirectUrl);
+                        java.net.HttpURLConnection conn2 = (java.net.HttpURLConnection) redirect.openConnection();
+                        conn2.setRequestMethod("POST");
+                        conn2.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                        conn2.setDoOutput(true);
+                        conn2.setConnectTimeout(10000);
+                        conn2.setReadTimeout(10000);
+                        conn2.setRequestProperty("Content-Length", String.valueOf(postData.length));
+                        try (java.io.OutputStream os2 = conn2.getOutputStream()) {
+                            os2.write(postData);
+                        }
+                        conn2.getResponseCode();
+                        conn2.disconnect();
+                    }
+                }
+                conn.disconnect();
+            } catch (Exception e) {
+                getLogger().warning("Failed to log to spreadsheet: " + e.getMessage());
+            }
+        });
     }
 
     // ==================== Mode Navigation Footer ====================
