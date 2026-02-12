@@ -1,5 +1,5 @@
 # ==========================================
-# GeminiNPC - AI相談システム設定
+# if-Gemini - AI相談システム設定
 # ==========================================
 
 # Gemini API設定
@@ -9,8 +9,9 @@ gemini:
 
   # 使用するGeminiモデル
   # 利用可能なモデル:
-  #   - gemini-3-flash-preview (高速・軽量)
-  #   - gemini-3-pro-preview (高性能・詳細な応答)
+  #   - gemini-3-flash-preview (Gemini 3 Flash: 高速・軽量)
+  #   - gemini-3-flash-thinking (Gemini 3 Flash Thinking: 深い思考)
+  #   - gemini-3-pro-preview (Gemini 3 Pro: 高性能・詳細な応答)
   model: "gemini-3-flash-preview"
 
   # システムプロンプト（AIの性格と回答スタイルを定義）
@@ -56,8 +57,8 @@ image:
 
   # デフォルトの画像生成モデル
   # 利用可能なモデル:
-  #   - gemini-2.5-flash-image (Nanobanana: 高速・軽量)
-  #   - gemini-3-pro-image-preview (Nanobanana Pro: 高品質・4K対応)
+  #   - gemini-2.5-flash-image (Nanobanana: Gemini 2.5 Flash ベース、高速・軽量)
+  #   - gemini-3-pro-image-preview (Nanobanana Pro: Gemini 3 Pro ベース、高品質・4K対応)
   default-model: "gemini-2.5-flash-image"
 
   # アスペクト比（1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9）
@@ -79,7 +80,7 @@ library:
 # コマンド生成設定
 command:
   # コマンド生成に使用するモデル（未設定時はプレイヤーの選択モデルを使用）
-  # pro推奨（複雑なコマンド生成に適している）
+  # Gemini 3 Pro推奨（複雑なコマンド生成に適している）
   # model: "gemini-3-pro-preview"
 
 # Google スプレッドシート連携設定

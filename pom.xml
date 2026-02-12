@@ -9,8 +9,8 @@
     <version>2.1.9</version>
     <packaging>jar</packaging>
 
-    <name>GeminiNPC</name>
-    <description>Minecraft NPC AI Chat Plugin using Google Gemini</description>
+    <name>if-Gemini</name>
+    <description>Minecraft AI Plugin using Google Gemini - Chat, Search, Command, Image Generation</description>
 
     <properties>
         <java.version>21</java.version>

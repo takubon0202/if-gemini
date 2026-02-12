@@ -169,7 +169,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
 
         getLogger().info("========================================");
-        getLogger().info("if-Gemini Plugin v2.0.2 Enabled!");
+        getLogger().info("if-Gemini Plugin v2.1.9 Enabled!");
         getLogger().info("Default Model: " + defaultModelName);
         getLogger().info("Default Image Model: " + defaultImageModel);
         getLogger().info("Image Hosting: " + imageHosting);
@@ -193,7 +193,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         playerAspectRatios.clear();
         playerResolutions.clear();
         imageGenerationCooldown.clear();
-        getLogger().info("GeminiNPC Plugin Disabled!");
+        getLogger().info("if-Gemini Plugin Disabled!");
     }
 
     private void loadConfiguration() {

@@ -25,7 +25,7 @@ MinecraftサーバーでGoogle Gemini AIを使った**相談・Web検索・コ�
 1. [Releases](https://github.com/takubon0202/if-gemini/releases) または `builds/` からJARファイルを取得
 2. サーバーの `plugins` フォルダにJARを配置
 3. サーバーを起動
-4. `plugins/GeminiNPC/config.yml` を編集してAPIキーを設定
+4. `plugins/if-Gemini/config.yml` を編集してAPIキーを設定
 5. `/geminireload` で設定を反映
 
 ## APIキーの取得
