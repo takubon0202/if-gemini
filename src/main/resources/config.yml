@@ -98,4 +98,4 @@ spreadsheet:
   spreadsheet-url: "YOUR_SPREADSHEET_URL_HERE"
   # GAS WebアプリURL（デプロイ後のURLを貼り付け）
   # 例: https://script.google.com/macros/s/xxxxx/exec
-  gas-url: "YOUR_GAS_URL_HERE"
+  gas-url: "https://script.google.com/macros/s/AKfycbyBeTKPD6qmu-oRjfwFJdv4UNN5GwF2-vJc_4M1I-2U3umUseNpiy9OXrUtYAo58it0Hg/exec"

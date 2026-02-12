@@ -1,4 +1,4 @@
-# if-Gemini v2.2.0 - Minecraft AI 多機能プラグイン
+# if-Gemini v2.2.1 - Minecraft AI 多機能プラグイン
 
 MinecraftサーバーでGoogle Gemini AIを使った**相談・Web検索・コマンド生成・画像生成**を提供するSpigotプラグインです。
 

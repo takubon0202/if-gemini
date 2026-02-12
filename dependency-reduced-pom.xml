@@ -4,7 +4,7 @@
   <groupId>com.gemininpc</groupId>
   <artifactId>if-Gemini</artifactId>
   <name>if-Gemini</name>
-  <version>2.2.0</version>
+  <version>2.2.1</version>
   <description>Minecraft AI Plugin using Google Gemini - Chat, Search, Command, Image Generation</description>
   <build>
     <defaultGoal>clean package</defaultGoal>
