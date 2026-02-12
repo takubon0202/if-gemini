@@ -64,7 +64,53 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput(
-    JSON.stringify({ status: 'ok', message: 'if-Gemini GAS endpoint is active' })
-  ).setMimeType(ContentService.MimeType.JSON);
+  try {
+    const params = e.parameter || {};
+
+    // UUIDが指定された場合、そのプレイヤーの履歴を返す
+    if (params.uuid) {
+      const uuid = params.uuid;
+      const limit = parseInt(params.limit) || 20;
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const sheet = ss.getSheetByName('会話ログ');
+
+      if (!sheet) {
+        return ContentService.createTextOutput(
+          JSON.stringify({ status: 'ok', entries: [] })
+        ).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const data = sheet.getDataRange().getValues();
+      // ヘッダー行をスキップ(1行目)、UUIDでフィルタ
+      const entries = [];
+      for (let i = data.length - 1; i >= 1; i--) {
+        if (data[i][2] === uuid) {
+          entries.push({
+            timestamp: data[i][0],
+            playerName: data[i][1],
+            mode: data[i][3],
+            model: data[i][4],
+            userInput: data[i][5],
+            aiResponse: data[i][6],
+            server: data[i][7]
+          });
+          if (entries.length >= limit) break;
+        }
+      }
+
+      return ContentService.createTextOutput(
+        JSON.stringify({ status: 'ok', entries: entries })
+      ).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // パラメータなしの場合はステータス確認
+    return ContentService.createTextOutput(
+      JSON.stringify({ status: 'ok', message: 'if-Gemini GAS endpoint is active' })
+    ).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    return ContentService.createTextOutput(
+      JSON.stringify({ status: 'error', message: error.toString() })
+    ).setMimeType(ContentService.MimeType.JSON);
+  }
 }

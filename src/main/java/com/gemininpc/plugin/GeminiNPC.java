@@ -664,12 +664,17 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 case "ライブラリ":
                     showLibrary(player, 1);
                     return;
+                case "8":
+                case "history":
+                case "履歴":
+                    showSpreadsheetHistory(player, 1);
+                    return;
                 case "model":
                 case "モデル":
                     showModelSelection(player);
                     return;
                 default:
-                    player.sendMessage(ChatColor.RED + "無効な選択です。1〜7の数字を入力してください。");
+                    player.sendMessage(ChatColor.RED + "無効な選択です。1〜8の数字を入力してください。");
                     return;
             }
         }
@@ -1041,6 +1046,25 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                     case "3":
                         startCommandMode(player);
                         return true;
+                    case "history":
+                    case "履歴":
+                    case "8":
+                        if (args.length > 1) {
+                            String historySub = args[1].toLowerCase();
+                            if (historySub.equals("page") && args.length > 2) {
+                                try {
+                                    int page = Integer.parseInt(args[2]);
+                                    showSpreadsheetHistory(player, page);
+                                } catch (NumberFormatException e) {
+                                    showSpreadsheetHistory(player, 1);
+                                }
+                            } else {
+                                showSpreadsheetHistory(player, 1);
+                            }
+                        } else {
+                            showSpreadsheetHistory(player, 1);
+                        }
+                        return true;
                     case "imagemodel":
                         if (args.length > 1) {
                             handleImageModelChange(player, args[1]);
@@ -1203,7 +1227,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             if (args.length == 1) {
                 // First argument - main subcommands
                 List<String> subCommands = Arrays.asList(
-                    "chat", "search", "image", "model", "help", "status", "library", "command", "menu", "exit", "clear", "imagemodel"
+                    "chat", "search", "image", "model", "help", "status", "library", "command", "history", "menu", "exit", "clear", "imagemodel"
                 );
                 String input = args[0].toLowerCase();
                 completions = subCommands.stream()
@@ -1340,6 +1364,11 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
             createClickableButton("[7] ライブラリ", "/gemini 7", "クリックで画像ライブラリを表示", net.md_5.bungee.api.ChatColor.GOLD),
             text("  ", net.md_5.bungee.api.ChatColor.GRAY),
             text("過去の画像", net.md_5.bungee.api.ChatColor.GRAY));
+        sendClickableLine(player,
+            text("    ", net.md_5.bungee.api.ChatColor.WHITE),
+            createClickableButton("[8] 履歴", "/gemini 8", "クリックで会話履歴を表示", net.md_5.bungee.api.ChatColor.DARK_AQUA),
+            text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+            text("過去の会話履歴", net.md_5.bungee.api.ChatColor.GRAY));
         player.sendMessage("");
         player.sendMessage(ChatColor.DARK_GRAY + "  ─────────────────────────────────");
         sendClickableLine(player,
@@ -3753,6 +3782,167 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
                 getLogger().warning("Failed to log to spreadsheet: " + e.getMessage());
             }
         });
+    }
+
+    // ==================== Spreadsheet History Viewer ====================
+
+    private void showSpreadsheetHistory(Player player, int page) {
+        if (!spreadsheetEnabled || gasUrl == null || gasUrl.isEmpty() || gasUrl.equals("YOUR_GAS_WEB_APP_URL_HERE")) {
+            player.sendMessage("");
+            player.sendMessage(ChatColor.RED + "スプレッドシート連携が設定されていません。");
+            player.sendMessage(ChatColor.GRAY + "config.yml の spreadsheet セクションを設定してください。");
+            player.sendMessage("");
+            return;
+        }
+
+        player.sendMessage(ChatColor.DARK_AQUA + "✦ " + ChatColor.GRAY + "履歴を取得中...");
+
+        final int requestPage = Math.max(1, page);
+
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            try {
+                // GAS doGet にUUIDパラメータを付けてリクエスト
+                String uuid = player.getUniqueId().toString();
+                String fetchUrl = gasUrl + "?uuid=" + java.net.URLEncoder.encode(uuid, "UTF-8") + "&limit=100";
+
+                java.net.URL url = new java.net.URL(fetchUrl);
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
+                conn.setInstanceFollowRedirects(true);
+
+                int responseCode = conn.getResponseCode();
+
+                // GAS GET may also redirect
+                if (responseCode == 302 || responseCode == 301) {
+                    String redirectUrl = conn.getHeaderField("Location");
+                    conn.disconnect();
+                    if (redirectUrl != null) {
+                        url = new java.net.URL(redirectUrl);
+                        conn = (java.net.HttpURLConnection) url.openConnection();
+                        conn.setRequestMethod("GET");
+                        conn.setConnectTimeout(15000);
+                        conn.setReadTimeout(15000);
+                        conn.setInstanceFollowRedirects(true);
+                        responseCode = conn.getResponseCode();
+                    }
+                }
+
+                StringBuilder responseBody = new StringBuilder();
+                try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(conn.getInputStream(), java.nio.charset.StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        responseBody.append(line);
+                    }
+                }
+                conn.disconnect();
+
+                // Parse JSON response
+                com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(responseBody.toString()).getAsJsonObject();
+                String status = json.has("status") ? json.get("status").getAsString() : "";
+
+                if (!"ok".equals(status)) {
+                    String errorMsg = json.has("message") ? json.get("message").getAsString() : "不明なエラー";
+                    Bukkit.getScheduler().runTask(GeminiNPC.this, () -> {
+                        player.sendMessage(ChatColor.RED + "履歴の取得に失敗しました: " + errorMsg);
+                    });
+                    return;
+                }
+
+                com.google.gson.JsonArray entries = json.has("entries") ? json.getAsJsonArray("entries") : new com.google.gson.JsonArray();
+
+                Bukkit.getScheduler().runTask(GeminiNPC.this, () -> {
+                    displaySpreadsheetHistory(player, entries, requestPage);
+                });
+
+            } catch (Exception e) {
+                getLogger().warning("Failed to fetch spreadsheet history: " + e.getMessage());
+                Bukkit.getScheduler().runTask(GeminiNPC.this, () -> {
+                    player.sendMessage(ChatColor.RED + "履歴の取得に失敗しました。接続エラー。");
+                });
+            }
+        });
+    }
+
+    private void displaySpreadsheetHistory(Player player, com.google.gson.JsonArray entries, int page) {
+        int totalItems = entries.size();
+        int itemsPerPage = 5;
+        int totalPages = Math.max(1, (int) Math.ceil((double) totalItems / itemsPerPage));
+
+        if (page < 1) page = 1;
+        if (page > totalPages) page = totalPages;
+
+        player.sendMessage("");
+        player.sendMessage(ChatColor.DARK_AQUA + "╔═══════════════════════════════════════════════╗");
+        player.sendMessage(ChatColor.DARK_AQUA + "║  " + ChatColor.WHITE + "会話履歴 (" + totalItems + "件)" +
+            ChatColor.GRAY + "  ページ " + page + "/" + totalPages + ChatColor.DARK_AQUA + "              ║");
+        player.sendMessage(ChatColor.DARK_AQUA + "╚═══════════════════════════════════════════════╝");
+        player.sendMessage("");
+
+        if (totalItems == 0) {
+            player.sendMessage(ChatColor.GRAY + "  まだ履歴がありません。");
+            player.sendMessage(ChatColor.GRAY + "  相談・検索・コマンド生成を使うと自動で記録されます。");
+        } else {
+            int startIndex = (page - 1) * itemsPerPage;
+            int endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+
+            for (int i = startIndex; i < endIndex; i++) {
+                com.google.gson.JsonObject entry = entries.get(i).getAsJsonObject();
+                String timestamp = entry.has("timestamp") ? entry.get("timestamp").getAsString() : "";
+                String mode = entry.has("mode") ? entry.get("mode").getAsString() : "";
+                String model = entry.has("model") ? entry.get("model").getAsString() : "";
+                String userInput = entry.has("userInput") ? entry.get("userInput").getAsString() : "";
+                String aiResponse = entry.has("aiResponse") ? entry.get("aiResponse").getAsString() : "";
+
+                // モード色の設定
+                ChatColor modeColor;
+                switch (mode) {
+                    case "相談": modeColor = ChatColor.AQUA; break;
+                    case "検索": modeColor = ChatColor.GREEN; break;
+                    case "コマンド生成": modeColor = ChatColor.GOLD; break;
+                    default: modeColor = ChatColor.GRAY; break;
+                }
+
+                // 入力を短縮
+                String shortInput = userInput.length() > 35 ? userInput.substring(0, 35) + "..." : userInput;
+                // AI応答を短縮
+                String shortResponse = aiResponse.length() > 45 ? aiResponse.substring(0, 45) + "..." : aiResponse;
+                // タイムスタンプを短縮（日付部分のみ）
+                String shortTime = timestamp.length() > 16 ? timestamp.substring(0, 16) : timestamp;
+
+                int displayNum = i + 1;
+                player.sendMessage(ChatColor.WHITE + "  " + displayNum + ". " + modeColor + "[" + mode + "] " +
+                    ChatColor.GRAY + shortTime);
+                player.sendMessage(ChatColor.YELLOW + "     あなた: " + ChatColor.WHITE + shortInput);
+                player.sendMessage(ChatColor.AQUA + "     AI: " + ChatColor.GRAY + shortResponse);
+                player.sendMessage("");
+            }
+        }
+
+        player.sendMessage(ChatColor.DARK_GRAY + "  ─────────────────────────────────");
+
+        // ナビゲーションボタン
+        final int currentPage = page;
+        if (totalPages > 1) {
+            TextComponent navLine = new TextComponent("  ");
+            if (currentPage > 1) {
+                navLine.addExtra(createClickableButton("[← 前]", "/gemini history page " + (currentPage - 1), "前のページ", net.md_5.bungee.api.ChatColor.YELLOW));
+                navLine.addExtra(new TextComponent("  "));
+            }
+            if (currentPage < totalPages) {
+                navLine.addExtra(createClickableButton("[次 →]", "/gemini history page " + (currentPage + 1), "次のページ", net.md_5.bungee.api.ChatColor.YELLOW));
+                navLine.addExtra(new TextComponent("  "));
+            }
+            navLine.addExtra(createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+            player.spigot().sendMessage(navLine);
+        } else {
+            sendClickableLine(player,
+                text("  ", net.md_5.bungee.api.ChatColor.GRAY),
+                createClickableButton("[メニューに戻る]", "/gemini menu", "クリックでメインメニューに戻る", net.md_5.bungee.api.ChatColor.RED));
+        }
+        player.sendMessage("");
     }
 
     // ==================== Mode Navigation Footer ====================
