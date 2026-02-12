@@ -1,4 +1,4 @@
-# if-Gemini v2.1.9 - Minecraft AI 多機能プラグイン
+# if-Gemini v2.2.0 - Minecraft AI 多機能プラグイン
 
 MinecraftサーバーでGoogle Gemini AIを使った**相談・Web検索・コマンド生成・画像生成**を提供するSpigotプラグインです。
 
@@ -343,10 +343,13 @@ JARファイルは `target/` に生成され、`builds/` フォルダにもコ�
 
 ## 変更履歴
 
-### v2.1.9
+### v2.2.0
 - **会話履歴ビューア**を追加（メインメニュー [8] 履歴）
 - スプレッドシートからユーザーごとの過去の会話をページ送りで閲覧可能
 - GAS doGetエンドポイントにUUIDフィルタ対応を追加
+- 全ユーザー表示名を「GeminiNPC」から「if-Gemini」に統一
+- config.ymlのモデル名コメントをGemini 3系に更新
+- DARK_GRAYテキストをGRAYに変更（視認性向上）
 
 ### v2.1.8
 - **Google スプレッドシート連携**を追加（GAS WebApp経由）

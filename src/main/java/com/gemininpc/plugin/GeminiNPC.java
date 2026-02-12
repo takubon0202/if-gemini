@@ -169,7 +169,7 @@ public class GeminiNPC extends JavaPlugin implements Listener, TabCompleter {
         }
 
         getLogger().info("========================================");
-        getLogger().info("if-Gemini Plugin v2.1.9 Enabled!");
+        getLogger().info("if-Gemini Plugin v2.2.0 Enabled!");
         getLogger().info("Default Model: " + defaultModelName);
         getLogger().info("Default Image Model: " + defaultImageModel);
         getLogger().info("Image Hosting: " + imageHosting);
